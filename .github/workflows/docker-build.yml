@@ -4,6 +4,10 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,5 +27,5 @@ jobs:
     
     - name: Tag and push image
       run: |
-        docker tag photo-storage-app ghcr.io/yokur313/photosharing:latest
-        docker push ghcr.io/yokur313/photosharing:latest
+        docker tag photo-storage-app ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
+        docker push ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:latest
