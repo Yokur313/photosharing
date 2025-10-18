@@ -18,9 +18,9 @@ function normalizeEndpoint(ep, b) {
 }
 
 export function getEnvConfig() {
-  const region = process.env.S3_REGION || 'fr-par';
-  const bucket = process.env.S3_BUCKET;
-  const rawEndpoint = process.env.S3_ENDPOINT || `https://s3.${region}.scw.cloud`;
+  const region = process.env.PROD_S3_REGION || process.env.S3_REGION || 'fr-par';
+  const bucket = process.env.PROD_S3_BUCKET || process.env.S3_BUCKET;
+  const rawEndpoint = process.env.PROD_S3_ENDPOINT || process.env.S3_ENDPOINT || `https://s3.${region}.scw.cloud`;
   const endpoint = normalizeEndpoint(rawEndpoint, bucket);
   return { region, bucket, endpoint };
 }
@@ -34,8 +34,8 @@ export function getS3() {
       endpoint,
       forcePathStyle: false,
       credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+        accessKeyId: process.env.PROD_S3_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.PROD_S3_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || '',
       },
     });
   }

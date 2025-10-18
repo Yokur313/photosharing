@@ -6,14 +6,14 @@ Set these in your Scaleway Serverless Container environment:
 
 ```
 NODE_ENV=production
-PORT=3000
-SESSION_SECRET=your-long-random-secret-here
-ADMIN_PASSWORD=your-admin-password
-S3_REGION=fr-par
-S3_BUCKET=photo-storage-313
-S3_ENDPOINT=https://photo-storage-313.s3.fr-par.scw.cloud
-S3_ACCESS_KEY_ID=SCWEZGZ37PKBHDAMCCTT
-S3_SECRET_ACCESS_KEY=your-secret-access-key-here
+PROD_PORT=3000
+PROD_SESSION_SECRET=your-long-random-secret-here
+PROD_ADMIN_PASSWORD=your-admin-password
+PROD_S3_REGION=fr-par
+PROD_S3_BUCKET=photo-storage-313
+PROD_S3_ENDPOINT=https://photo-storage-313.s3.fr-par.scw.cloud
+PROD_S3_ACCESS_KEY_ID=SCWEZGZ37PKBHDAMCCTT
+PROD_S3_SECRET_ACCESS_KEY=your-secret-access-key-here
 ```
 
 ## Volume Mount

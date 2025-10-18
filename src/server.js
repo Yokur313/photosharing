@@ -33,7 +33,7 @@ app.use(cors({
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'dev-secret',
+    secret: process.env.PROD_SESSION_SECRET || process.env.SESSION_SECRET || 'dev-secret',
     resave: false,
     saveUninitialized: false,
   })
@@ -53,10 +53,10 @@ app.get('/login', (req, res) => {
 
 app.post('/login', (req, res) => {
   const { password } = req.body;
-  if ((process.env.ADMIN_PASSWORD || '') && password === process.env.ADMIN_PASSWORD) {
+  if (((process.env.PROD_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD) || '') && password === (process.env.PROD_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD)) {
     req.session.isAdmin = true;
     // Issue JWT cookie valid for 30 days
-    const token = jwt.sign({ role: 'admin' }, process.env.SESSION_SECRET || 'dev-secret', { expiresIn: '30d' });
+    const token = jwt.sign({ role: 'admin' }, process.env.PROD_SESSION_SECRET || process.env.SESSION_SECRET || 'dev-secret', { expiresIn: '30d' });
     res.cookie('admin_jwt', token, { httpOnly: true, sameSite: 'lax', maxAge: 1000*60*60*24*30 });
     return res.redirect('/admin');
   }
@@ -68,7 +68,7 @@ function requireAdmin(req, res, next) {
   const token = req.cookies && req.cookies.admin_jwt;
   if (token) {
     try {
-      const payload = jwt.verify(token, process.env.SESSION_SECRET || 'dev-secret');
+      const payload = jwt.verify(token, process.env.PROD_SESSION_SECRET || process.env.SESSION_SECRET || 'dev-secret');
       if (payload && payload.role === 'admin') {
         req.session.isAdmin = true;
         return next();
@@ -258,7 +258,7 @@ app.get('/s/:id/download.zip', async (req, res) => {
     for (const obj of objects) {
       const key = obj.Key;
       const rel = key.replace(folderKey, '');
-      const cmd = new GetObjectCommand({ Bucket: bucketName || process.env.S3_BUCKET, Key: key });
+      const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
       const data = await s3Client.send(cmd);
       archive.append(data.Body, { name: rel });
     }
@@ -339,12 +339,12 @@ app.post('/s/:id/upload', upload.array('photos'), async (req, res) => {
   }
 });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PROD_PORT || process.env.PORT || 3000;
 app.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log(`Server listening on http://localhost:${port}`);
   // eslint-disable-next-line no-console
-  console.log(`S3 config: bucket=${process.env.S3_BUCKET || '(unset)'} endpoint=${process.env.S3_ENDPOINT || `https://s3.${process.env.S3_REGION || 'fr-par'}.scw.cloud`}`);
+  console.log(`S3 config: bucket=${process.env.PROD_S3_BUCKET || process.env.S3_BUCKET || '(unset)'} endpoint=${process.env.PROD_S3_ENDPOINT || process.env.S3_ENDPOINT || `https://s3.${process.env.PROD_S3_REGION || process.env.S3_REGION || 'fr-par'}.scw.cloud`}`);
 });
 
 
