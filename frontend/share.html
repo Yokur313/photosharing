@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared Folder</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>Shared Folder</h1>
+      <nav>
+        <a class="secondary" href="./index.html">Home</a>
+        <button id="theme-toggle" class="secondary" aria-label="Toggle theme"><span id="theme-icon">☀️</span></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <section class="card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <p class="muted" id="folder-label"></p>
+        <a id="zip-link" class="secondary" href="#" target="_blank" rel="noopener">Download ZIP</a>
+      </div>
+      <div id="grid" class="grid"></div>
+    </section>
+  </main>
+
+  <div id="preview-modal" class="modal" hidden>
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button type="button" class="modal-close">✕</button>
+      <img id="preview-image" alt="preview" />
+    </div>
+  </div>
+
+  <script src="./theme.js"></script>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const shareId = q.get('id');
+    if (!shareId) location.replace('./index.html');
+
+    async function fetchShare() {
+      const r = await fetch(`${window.API_BASE}/api/share/${encodeURIComponent(shareId)}`);
+      if (!r.ok) throw new Error('Failed to load share');
+      return r.json(); // { id, folderKey, items:[{name,size,url}] , editable:boolean }
+    }
+
+    function byId(id){ return document.getElementById(id); }
+
+    function openPreview(url){
+      const m = byId('preview-modal'), img = byId('preview-image');
+      if (!m || !img) return;
+      img.src = url; m.hidden = false; document.body.style.overflow = 'hidden';
+    }
+    function closePreview(){
+      const m = byId('preview-modal'), img = byId('preview-image');
+      if (!m || !img) return;
+      m.hidden = true; img.src = ''; document.body.style.overflow = '';
+    }
+
+    (function bindModal(){
+      const m = byId('preview-modal');
+      if (!m) return;
+      m.querySelector('.modal-backdrop').addEventListener('click', closePreview);
+      m.querySelector('.modal-close').addEventListener('click', closePreview);
+      m.querySelector('img').addEventListener('click', closePreview);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) closePreview(); });
+    })();
+
+    function renderItems(items){
+      const grid = byId('grid'); grid.innerHTML = '';
+      for (const it of items) {
+        const a = document.createElement('a');
+        a.className = 'tile'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
+        const t = document.createElement('div'); t.className = 'thumb';
+        const img = document.createElement('img'); img.src = it.url; img.alt = it.name;
+        t.appendChild(img); a.appendChild(t);
+        a.addEventListener('click',(ev)=>{ ev.preventDefault(); openPreview(it.url); });
+        grid.appendChild(a);
+      }
+    }
+
+    (async function init(){
+      try {
+        const data = await fetchShare();
+        byId('folder-label').textContent = data.folderKey || '/';
+        byId('zip-link').href = `${window.API_BASE}/s/${encodeURIComponent(shareId)}/download.zip`;
+        renderItems(data.items || []);
+      } catch (e) {
+        byId('grid').innerHTML = '<div class="muted">Failed to load shared folder.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>

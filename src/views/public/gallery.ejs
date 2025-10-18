@@ -1,0 +1,25 @@
+<section class="card">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <h2>Shared Folder</h2>
+    <a class="secondary" href="/s/<%= share.id %>/download.zip">Download ZIP</a>
+  </div>
+  <p class="muted"><%= share.folderKey %></p>
+  <div class="grid">
+    <% items.forEach(item => { %>
+      <a class="tile" href="<%= item.url %>" target="_blank">
+        <div class="thumb">
+          <img src="<%= item.url %>" alt="image" />
+        </div>
+      </a>
+    <% }) %>
+  </div>
+  <% if (share.editable) { %>
+  <hr />
+  <form class="row" method="post" action="/s/<%= share.id %>/upload" enctype="multipart/form-data">
+    <input type="file" name="photos" multiple accept="image/*" />
+    <button type="submit">Add photos</button>
+  </form>
+  <% } %>
+</section>
+
+

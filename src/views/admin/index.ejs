@@ -1,0 +1,84 @@
+<section class="onedrive">
+  <div class="od-toolbar">
+    <div class="od-breadcrumbs">
+      <% crumbs.forEach((c, idx) => { %>
+        <a href="/admin?prefix=<%= encodeURIComponent(c.prefix) %>"><%= c.name %></a>
+        <% if (idx < crumbs.length - 1) { %>
+          <span>/</span>
+        <% } %>
+      <% }) %>
+    </div>
+    <div class="od-actions">
+      <form class="od-inline" action="/admin/folder/create" method="post">
+        <input type="hidden" name="prefix" value="<%= prefix %>">
+        <input class="od-input" type="text" name="name" placeholder="New folder" required />
+        <button type="submit">New folder</button>
+      </form>
+      <div class="od-inline">
+        <form id="od-upload-form" class="od-inline" action="/admin/upload" method="post" enctype="multipart/form-data">
+          <input type="hidden" name="prefix" value="<%= prefix %>">
+          <input id="od-file-input" type="file" name="photos" multiple accept="image/*">
+          <button type="submit">Upload</button>
+        </form>
+      </div>
+      <button id="od-share-btn" class="od-btn" data-folder="<%= prefix %>">Share</button>
+      <a class="secondary od-btn" href="/logout">Logout</a>
+    </div>
+  </div>
+
+  <div id="od-dropzone" class="od-dropzone">
+    <div class="od-list">
+      <div class="od-list-head">
+        <div class="od-col name">Name</div>
+        <div class="od-col size">Size</div>
+        <div class="od-col actions">Actions</div>
+      </div>
+      <div class="od-list-body">
+        <% entries.forEach(e => { %>
+          <% if (e.type === 'folder') { %>
+            <div class="od-row folder">
+              <div class="od-col name">
+                <a href="/admin?prefix=<%= encodeURIComponent(e.key) %>">📁 <%= e.name %></a>
+              </div>
+              <div class="od-col size muted">—</div>
+              <div class="od-col actions od-actions-row">
+                <button class="link od-share od-btn" data-folder="<%= e.key %>">Share</button>
+                <form class="od-inline" action="/admin/folder/delete" method="post">
+                  <input type="hidden" name="prefix" value="<%= e.key %>">
+                  <button class="secondary od-btn" type="submit">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% } else { %>
+            <div class="od-row file" draggable="true" data-key="<%= e.key %>">
+              <div class="od-col name"><button type="button" class="link od-preview" data-url="<%= e.url %>"><%= e.name %></button></div>
+              <div class="od-col size"><%= e.sizeDisplay || e.size %></div>
+              <div class="od-col actions od-actions-row">
+                <form class="od-inline" method="post" action="/admin/delete">
+                  <input type="hidden" name="key" value="<%= e.key %>">
+                  <button class="secondary od-btn" type="submit">Delete</button>
+                </form>
+                <form class="od-inline" method="post" action="/admin/move">
+                  <input type="hidden" name="fromKey" value="<%= e.key %>">
+                  <input class="od-input" type="text" name="toFolder" placeholder="/target/folder" />
+                  <button class="od-btn" type="submit">Move</button>
+                </form>
+              </div>
+            </div>
+          <% } %>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="/public/ui.js"></script>
+<div id="preview-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close">✕</button>
+    <img id="preview-image" alt="preview" />
+  </div>
+  </div>
+
+

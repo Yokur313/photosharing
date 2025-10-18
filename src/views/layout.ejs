@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= typeof title !== 'undefined' ? title : 'Photo Storage' %></title>
+  <link rel="stylesheet" href="/public/styles.css" />
+  <script>
+    (function(){
+      const stored = localStorage.getItem('theme') || 'light';
+      document.documentElement.dataset.theme = stored;
+    })();
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>Photo Storage</h1>
+      <nav>
+        <a href="/admin">Admin</a>
+        <a href="/admin/shares">Shares</a>
+        <button id="theme-toggle" class="secondary" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <span id="theme-icon">☀️</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <%- body %>
+  </main>
+  <script>
+    (function(){
+      const btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      function setTheme(next){
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('theme', next);
+        var icon = document.getElementById('theme-icon');
+        if (icon) icon.textContent = next === 'light' ? '☀️' : '🌙';
+      }
+      btn.addEventListener('click', () => {
+        const cur = document.documentElement.dataset.theme || 'light';
+        setTheme(cur === 'light' ? 'dark' : 'light');
+      });
+      // initialize icon
+      setTheme(document.documentElement.dataset.theme || 'light');
+    })();
+  </script>
+</body>
+</html>
+
+

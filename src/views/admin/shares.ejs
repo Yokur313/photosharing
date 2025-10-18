@@ -1,0 +1,31 @@
+<section class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2>Share Links</h2>
+    <a class="secondary" href="/admin">Back</a>
+  </div>
+  <form class="row" method="post" action="/admin/shares">
+    <input type="text" name="folderKey" placeholder="folder/key" required />
+    <input type="password" name="password" placeholder="optional password" />
+    <button type="submit">Create Share</button>
+  </form>
+  <table>
+    <thead><tr><th>Folder</th><th>Password</th><th>Link</th><th></th></tr></thead>
+    <tbody>
+      <% shares.forEach(s => { %>
+        <tr>
+          <td class="muted"><%= s.folderKey %></td>
+          <td><%= s.passwordHash ? 'yes' : 'no' %></td>
+          <td><a href="/s/<%= s.id %>" target="_blank">/s/<%= s.id %></a></td>
+          <td>
+            <form method="post" action="/admin/shares/delete" style="display:inline">
+              <input type="hidden" name="id" value="<%= s.id %>" />
+              <button class="secondary" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
+

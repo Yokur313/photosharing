@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photosharing</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./config.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>Photosharing</h1>
+      <nav>
+        <button id="theme-toggle" class="secondary" aria-label="Toggle theme"><span id="theme-icon">☀️</span></button>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <section class="card">
+      <h2>Open shared folder</h2>
+      <form id="open-form" class="row">
+        <input type="text" id="share-input" placeholder="Paste shared URL or ID" required>
+        <button type="submit">Open</button>
+      </form>
+      <p class="muted">Tip: URL looks like https://YOUR-BACKEND-DOMAIN/s/<em>ID</em></p>
+    </section>
+  </main>
+  <script src="./theme.js"></script>
+  <script>
+    document.getElementById('open-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = document.getElementById('share-input').value.trim();
+      const id = (v.match(/\/s\/([^/?#]+)/) || [null, v])[1];
+      if (id) window.location.href = `./share.html?id=${encodeURIComponent(id)}`;
+    });
+  </script>
+</body>
+</html>

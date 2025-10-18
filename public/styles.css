@@ -1,0 +1,59 @@
+:root{--bg:#f6f8fb;--card:#ffffff;--text:#0a1222;--muted:#5c667a;--accent:#4f8cff;--danger:#ff5f6d;--border:#e5e9f2}
+[data-theme="dark"]{--bg:#0b1324;--card:#121a33;--text:#e8ecf1;--muted:#aeb7c4;--accent:#4f8cff;--danger:#ff5f6d;--border:#1e2745}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif}
+.container{max-width:1080px;margin:0 auto;padding:24px}
+.site-header{background:var(--card);border-bottom:1px solid var(--border)}
+.site-header .container{display:flex;align-items:center;gap:24px}
+.site-header h1{font-size:18px;margin:0;color:var(--text)}
+.site-header nav{display:flex;gap:12px;margin-left:auto}
+.site-header a{color:var(--muted);text-decoration:none;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:none}
+.site-header a:hover{background:#eef2fb;color:#0a1222}
+.card{background:var(--card);padding:24px;border-radius:16px;border:1px solid var(--border)}
+form{display:flex;flex-direction:column;gap:12px}
+label{font-size:14px;color:var(--muted)}
+input,select{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px 12px;border-radius:10px}
+button{background:var(--accent);border:none;color:white;padding:10px 14px;border-radius:10px;cursor:pointer}
+button.secondary{background:#283455;color:#e5ecf3}
+.alert{background:#fff1f1;border:1px solid #ffd1d1;color:#b40000;padding:10px 12px;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.tile{background:#0f1833;border:1px solid #1e2745;border-radius:12px;overflow:hidden}
+.tile .thumb{aspect-ratio:1/1;background:#0b1324;display:flex;align-items:center;justify-content:center}
+.tile img{display:block;width:100%;height:100%;object-fit:cover}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-bottom:1px solid #1e2745}
+.muted{color:var(--muted)}
+
+/* OneDrive-like UI */
+.onedrive{background:transparent}
+.od-toolbar{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px 16px;margin-bottom:16px}
+.od-breadcrumbs{display:flex;gap:8px;align-items:center}
+.od-breadcrumbs a{color:#cfd6e3;text-decoration:none}
+.od-breadcrumbs span{color:#63708a}
+.od-actions{display:flex;gap:10px;align-items:center}
+.od-inline{display:inline-flex;gap:8px;align-items:center}
+.od-input{min-width:180px}
+.od-list{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.od-list-head,.od-row{display:grid;grid-template-columns:1fr 140px 320px;gap:12px;align-items:center}
+.od-list-head{background:var(--bg);color:var(--muted);padding:12px 16px;border-bottom:1px solid var(--border)}
+.od-list-body .od-row{padding:12px 16px;border-bottom:1px solid var(--border)}
+.od-row.folder:hover,.od-row.file:hover{background:#f0f4ff}
+.od-col.actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.od-actions-row{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.link{background:none;border:none;color:#8fb0ff;cursor:pointer;padding:0}
+.od-dropzone{border:2px dashed var(--border);border-radius:16px;padding:8px}
+.od-dropzone.dragover{background:#eef3ff}
+
+/* Modal */
+.modal{position:fixed;inset:0;display:block;z-index:1000}
+.modal[hidden]{display:none}
+.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.5);cursor:zoom-out}
+.modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;max-width:90vw;max-height:90vh;z-index:1001}
+.modal-content img{display:block;max-width:85vw;max-height:85vh;border-radius:8px;cursor:zoom-out}
+.modal-close{position:absolute;top:8px;right:8px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+
+/* Themed icon button */
+.od-btn{min-height:32px}
+
+
