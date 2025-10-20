@@ -50,10 +50,10 @@
   form.addEventListener('submit', (e) => {
     const vals = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
     if (vals.length === 0) { e.preventDefault(); return; }
-    // Convert to multi-value form body
-    const fd = new FormData();
-    vals.forEach(v => fd.append('keys[]', v));
-    fetch(form.action, { method: 'POST', body: fd })
+    // Send as URL-encoded keys[]=... entries for compatibility
+    const params = new URLSearchParams();
+    vals.forEach(v => params.append('keys[]', v));
+    fetch(form.action, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
       .then(r => { if (r.ok) return r.blob(); throw new Error('download failed'); })
       .then(blob => {
         const url = URL.createObjectURL(blob);
