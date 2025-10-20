@@ -286,9 +286,16 @@ app.get('/s/:id/download.zip', async (req, res) => {
     let objects;
     if (selected.length > 0) {
       const base = folderKey;
-      const valid = selected.filter(k => typeof k === 'string' && k.startsWith(base));
+      // Accept both absolute keys and relative filenames
+      const normalized = selected
+        .filter(k => typeof k === 'string' && k.trim().length > 0)
+        .map(k => (k.startsWith(base) ? k : (base + k.replace(/^\/+/, ''))));
+      // Keep only keys under base
+      const valid = normalized.filter(k => k.startsWith(base));
       if (valid.length === 0) return res.status(400).send('Invalid files');
-      objects = valid.map(k => ({ Key: k }));
+      // De-duplicate
+      const uniq = Array.from(new Set(valid));
+      objects = uniq.map(k => ({ Key: k }));
     } else {
       objects = await listAllRecursive(folderKey);
     }
