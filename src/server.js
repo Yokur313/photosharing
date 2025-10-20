@@ -277,11 +277,13 @@ app.get('/s/:id/download.zip', async (req, res) => {
   const folderKey = share.folderKey.replace(/\/?$/, '/');
   try {
     // If specific keys are requested (selected download), validate against share folder
-    const rawKeysArr = req.query['keys[]'];
-    const rawKeys = req.query['keys'];
+    const qArrBracket = req.query['keys[]'];
+    const qNoBracket = req.query['keys'];
     let selected = [];
-    if (Array.isArray(rawKeysArr) && rawKeysArr.length) selected = rawKeysArr;
-    else if (typeof rawKeys === 'string' && rawKeys.length) selected = rawKeys.split(',');
+    if (Array.isArray(qArrBracket) && qArrBracket.length) selected = qArrBracket;
+    else if (typeof qArrBracket === 'string' && qArrBracket) selected = [qArrBracket];
+    else if (Array.isArray(qNoBracket) && qNoBracket.length) selected = qNoBracket;
+    else if (typeof qNoBracket === 'string' && qNoBracket) selected = qNoBracket.includes(',') ? qNoBracket.split(',') : [qNoBracket];
 
     let objects;
     if (selected.length > 0) {
@@ -295,6 +297,7 @@ app.get('/s/:id/download.zip', async (req, res) => {
       if (valid.length === 0) return res.status(400).send('Invalid files');
       // De-duplicate
       const uniq = Array.from(new Set(valid));
+      // Verify each object exists; if any is missing, skip it
       objects = uniq.map(k => ({ Key: k }));
     } else {
       objects = await listAllRecursive(folderKey);
