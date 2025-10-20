@@ -280,9 +280,10 @@ app.get('/s/:id/download.zip', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folderKey.split('/').filter(Boolean).pop() || 'folder')}.zip"`);
     req.setTimeout(0);
     res.setTimeout(0);
-    const archive = archiver('zip', { zlib: { level: 6 } });
+    const archive = archiver('zip', { zlib: { level: 0 } });
     archive.on('error', err => { try { res.status(500).end(); } catch(_){} });
     archive.pipe(res);
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
     const { bucket: bucketName } = getEnvConfig();
     const s3Client = getS3();
     for (const obj of objects) {
@@ -296,6 +297,43 @@ app.get('/s/:id/download.zip', async (req, res) => {
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('ZIP error', e);
+    return res.status(500).send('Failed to create zip');
+  }
+});
+
+// Download selected files as ZIP
+app.post('/s/:id/download-selected.zip', async (req, res) => {
+  const share = await getShareByIdAsync(req.params.id);
+  if (!share) return res.status(404).send('Share not found');
+  if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
+    return res.status(403).send('Password required');
+  }
+  const keys = ([]).concat(req.body.keys || req.body['keys[]'] || []);
+  if (!Array.isArray(keys) || keys.length === 0) return res.status(400).send('No files selected');
+  const base = share.folderKey.replace(/\/?$/, '/');
+  const validKeys = keys.filter(k => typeof k === 'string' && k.startsWith(base));
+  if (validKeys.length === 0) return res.status(400).send('Invalid files');
+  try {
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent((base.split('/').filter(Boolean).pop() || 'selection'))}-selected.zip"`);
+    req.setTimeout(0);
+    res.setTimeout(0);
+    const archive = archiver('zip', { zlib: { level: 0 } });
+    archive.on('error', err => { try { res.status(500).end(); } catch(_){} });
+    archive.pipe(res);
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    const { bucket: bucketName } = getEnvConfig();
+    const s3Client = getS3();
+    for (const key of validKeys) {
+      const rel = key.replace(base, '');
+      const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
+      const data = await s3Client.send(cmd);
+      archive.append(data.Body, { name: rel });
+    }
+    await archive.finalize();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('ZIP selected error', e);
     return res.status(500).send('Failed to create zip');
   }
 });

@@ -1,16 +1,25 @@
 <section class="card">
   <div class="row" style="justify-content:space-between;align-items:center">
     <h2>Shared Folder</h2>
-    <a class="secondary" href="/s/<%= share.id %>/download.zip">Download ZIP</a>
+    <div class="row">
+      <form id="selected-download" method="post" action="/s/<%= share.id %>/download-selected.zip" style="display:inline-flex;gap:8px;align-items:center">
+        <input type="hidden" name="keys" id="selected-keys" value="" />
+        <button type="submit" class="secondary" id="download-selected" disabled>Download selected</button>
+      </form>
+      <a class="secondary" href="/s/<%= share.id %>/download.zip">Download ZIP</a>
+    </div>
   </div>
   <p class="muted"><%= share.folderKey %></p>
   <div class="grid">
     <% items.forEach(item => { %>
-      <a class="tile" href="<%= item.url %>" target="_blank">
-        <div class="thumb">
-          <img src="/s/<%= share.id %>/thumb?key=<%= encodeURIComponent(item.key || item.key || item.url) %>&w=256&h=256" alt="<%= item.name %>" loading="lazy" />
-        </div>
-      </a>
+      <label class="tile" style="position:relative;cursor:pointer">
+        <input type="checkbox" class="sel" value="<%= item.key %>" style="position:absolute;top:8px;left:8px;z-index:2">
+        <a href="<%= item.url %>" target="_blank" style="text-decoration:none;color:inherit">
+          <div class="thumb">
+            <img src="/s/<%= share.id %>/thumb?key=<%= encodeURIComponent(item.key || item.url) %>&w=256&h=256" alt="<%= item.name %>" loading="lazy" />
+          </div>
+        </a>
+      </label>
     <% }) %>
   </div>
   <% if (share.editable) { %>
@@ -21,5 +30,37 @@
   </form>
   <% } %>
 </section>
+
+<script>
+(function(){
+  const form = document.getElementById('selected-download');
+  if (!form) return;
+  const btn = document.getElementById('download-selected');
+  const hidden = document.getElementById('selected-keys');
+  function update(){
+    const sel = Array.from(document.querySelectorAll('input.sel:checked')).map(i => i.value);
+    btn.disabled = sel.length === 0;
+    hidden.value = sel.join(',');
+  }
+  document.querySelectorAll('input.sel').forEach(cb => cb.addEventListener('change', update));
+  form.addEventListener('submit', (e) => {
+    const vals = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+    if (vals.length === 0) { e.preventDefault(); return; }
+    // Convert to multi-value form body
+    const fd = new FormData();
+    vals.forEach(v => fd.append('keys[]', v));
+    fetch(form.action, { method: 'POST', body: fd })
+      .then(r => { if (r.ok) return r.blob(); throw new Error('download failed'); })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'selection.zip';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      })
+      .catch(()=>{})
+      .finally(()=>{});
+    e.preventDefault();
+  });
+})();
+</script>
 
 
