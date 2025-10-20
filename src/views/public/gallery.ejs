@@ -6,14 +6,14 @@
         <input type="hidden" name="keys" id="selected-keys" value="" />
         <button type="submit" class="secondary" id="download-selected" disabled>Download selected</button>
       </form>
-      <a class="secondary" href="/s/<%= share.id %>/download.zip">Download ZIP</a>
+      <a id="download-all" class="secondary" href="/s/<%= share.id %>/download.zip">Download all</a>
     </div>
   </div>
   <p class="muted"><%= share.folderKey %></p>
   <div class="grid">
     <% items.forEach(item => { %>
       <label class="tile" style="position:relative;cursor:pointer">
-        <input type="checkbox" class="sel" value="<%= item.key %>" style="position:absolute;top:8px;left:8px;z-index:2">
+        <input type="checkbox" class="sel" value="<%= item.key %>" style="z-index:2">
         <a href="<%= item.url %>" target="_blank" style="text-decoration:none;color:inherit">
           <div class="thumb">
             <img src="/s/<%= share.id %>/thumb?key=<%= encodeURIComponent(item.key || item.url) %>&w=256&h=256" alt="<%= item.name %>" loading="lazy" />
@@ -40,6 +40,7 @@
   function update(){
     const sel = Array.from(document.querySelectorAll('input.sel:checked')).map(i => i.value);
     btn.disabled = sel.length === 0;
+    btn.textContent = sel.length ? `Download selected (${sel.length})` : 'Download selected';
     hidden.value = sel.join(',');
   }
   document.querySelectorAll('input.sel').forEach(cb => cb.addEventListener('change', update));
