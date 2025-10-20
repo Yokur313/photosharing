@@ -13,6 +13,7 @@ import { listPrefix, putObject, deleteObject, copyObject, joinKey, signGetUrl, c
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { listShares, createShare, deleteShare as removeShare, getShareById, verifySharePassword } from './shareStore.js';
 import expressLayouts from 'express-ejs-layouts';
+import sharp from 'sharp';
 
 const app = express();
 
@@ -231,11 +232,38 @@ app.get('/api/share/:id', async (req, res) => {
     const items = [];
     for (const f of files) {
       const url = await signGetUrl(f.key, 3600);
-      items.push({ name: f.key.split('/').pop(), size: f.size, url });
+      items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url });
     }
     res.json({ id: share.id, folderKey: share.folderKey, editable: !!share.editable, items });
   } catch (e) {
     res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// Thumbnail generator for items within a share
+app.get('/s/:id/thumb', async (req, res) => {
+  const share = getShareById(req.params.id);
+  if (!share) return res.status(404).send('Share not found');
+  if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
+    return res.status(403).send('Password required');
+  }
+  const key = (req.query.key || '').toString();
+  if (!key || !key.startsWith(share.folderKey.replace(/\/?$/, '/'))) {
+    return res.status(400).send('Invalid key');
+  }
+  const width = Math.max(32, Math.min(1024, parseInt(req.query.w, 10) || 256));
+  const height = Math.max(32, Math.min(1024, parseInt(req.query.h, 10) || width));
+  try {
+    const { bucket } = getEnvConfig();
+    const s3Client = getS3();
+    const cmd = new GetObjectCommand({ Bucket: bucket || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
+    const data = await s3Client.send(cmd);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Content-Type', 'image/jpeg');
+    const transformer = sharp().rotate().resize({ width, height, fit: 'cover' }).jpeg({ quality: 70, mozjpeg: true });
+    data.Body.pipe(transformer).pipe(res);
+  } catch (e) {
+    return res.status(500).send('Failed to create thumbnail');
   }
 });
 
@@ -250,19 +278,27 @@ app.get('/s/:id/download.zip', async (req, res) => {
     const objects = await listAllRecursive(folderKey);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folderKey.split('/').filter(Boolean).pop() || 'folder')}.zip"`);
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    req.setTimeout(0);
+    res.setTimeout(0);
+    const archive = archiver('zip', { zlib: { level: 6 } });
     archive.on('error', err => { try { res.status(500).end(); } catch(_){} });
     archive.pipe(res);
     const { bucket: bucketName } = getEnvConfig();
     const s3Client = getS3();
-    for (const obj of objects) {
-      const key = obj.Key;
-      const rel = key.replace(folderKey, '');
-      const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
-      const data = await s3Client.send(cmd);
-      archive.append(data.Body, { name: rel });
+    const concurrency = 4;
+    let index = 0;
+    async function work() {
+      while (index < objects.length) {
+        const i = index++;
+        const key = objects[i].Key;
+        const rel = key.replace(folderKey, '');
+        const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
+        const data = await s3Client.send(cmd);
+        archive.append(data.Body, { name: rel });
+      }
     }
-    await archive.finalize();
+    await Promise.all(Array.from({ length: concurrency }, () => work()));
+    archive.finalize();
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('ZIP error', e);

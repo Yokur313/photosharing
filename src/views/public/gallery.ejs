@@ -8,7 +8,7 @@
     <% items.forEach(item => { %>
       <a class="tile" href="<%= item.url %>" target="_blank">
         <div class="thumb">
-          <img src="<%= item.url %>" alt="image" />
+          <img src="/s/<%= share.id %>/thumb?key=<%= encodeURIComponent(item.key || item.key || item.url) %>&w=256&h=256" alt="<%= item.name %>" loading="lazy" />
         </div>
       </a>
     <% }) %>

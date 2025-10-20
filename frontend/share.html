@@ -71,14 +71,26 @@
 
     function renderItems(items){
       const grid = byId('grid'); grid.innerHTML = '';
+      const io = ('IntersectionObserver' in window) ? new IntersectionObserver((entries)=>{
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            const img = e.target; const src = img.getAttribute('data-src');
+            if (src) { img.src = src; img.removeAttribute('data-src'); }
+            io.unobserve(img);
+          }
+        }
+      }, { rootMargin: '200px' }) : null;
       for (const it of items) {
         const a = document.createElement('a');
         a.className = 'tile'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
         const t = document.createElement('div'); t.className = 'thumb';
-        const img = document.createElement('img'); img.src = it.url; img.alt = it.name;
+        const thumbUrl = `${window.API_BASE}/s/${encodeURIComponent(shareId)}/thumb?key=${encodeURIComponent(it.key || it.name)}&w=256&h=256`;
+        const img = document.createElement('img'); img.alt = it.name; img.loading = 'lazy';
+        if (io) { img.setAttribute('data-src', thumbUrl); } else { img.src = thumbUrl; }
         t.appendChild(img); a.appendChild(t);
         a.addEventListener('click',(ev)=>{ ev.preventDefault(); openPreview(it.url); });
         grid.appendChild(a);
+        if (io) io.observe(img);
       }
     }
 
