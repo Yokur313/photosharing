@@ -11,7 +11,7 @@ import archiver from 'archiver';
 import multer from 'multer';
 import { listPrefix, putObject, deleteObject, copyObject, joinKey, signGetUrl, createFolder, deleteFolderRecursive, listAllRecursive, getEnvConfig, getS3 } from './s3.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import { listShares, createShare, deleteShare as removeShare, getShareById, verifySharePassword } from './shareStore.js';
+import { listShares, createShare, deleteShare as removeShare, getShareById, verifySharePassword, listSharesAsync, getShareByIdAsync, createShareAsync, deleteShareAsync } from './shareStore.js';
 import expressLayouts from 'express-ejs-layouts';
 import sharp from 'sharp';
 
@@ -199,11 +199,11 @@ app.post('/admin/folder/delete', requireAdmin, async (req, res) => {
 });
 
 // Quick share creation (JSON)
-app.post('/admin/share/create', requireAdmin, (req, res) => {
+app.post('/admin/share/create', requireAdmin, async (req, res) => {
   const { folderKey, password, editable } = req.body;
   if (!folderKey) return res.status(400).json({ error: 'folderKey required' });
   try {
-    const share = createShare({ folderKey, password, editable: !!editable });
+    const share = await createShareAsync({ folderKey, password, editable: !!editable });
     return res.json({ id: share.id, url: `/s/${share.id}` });
   } catch (e) {
     return res.status(500).json({ error: 'Failed to create share' });
@@ -285,20 +285,14 @@ app.get('/s/:id/download.zip', async (req, res) => {
     archive.pipe(res);
     const { bucket: bucketName } = getEnvConfig();
     const s3Client = getS3();
-    const concurrency = 4;
-    let index = 0;
-    async function work() {
-      while (index < objects.length) {
-        const i = index++;
-        const key = objects[i].Key;
-        const rel = key.replace(folderKey, '');
-        const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
-        const data = await s3Client.send(cmd);
-        archive.append(data.Body, { name: rel });
-      }
+    for (const obj of objects) {
+      const key = obj.Key;
+      const rel = key.replace(folderKey, '');
+      const cmd = new GetObjectCommand({ Bucket: bucketName || (process.env.PROD_S3_BUCKET || process.env.S3_BUCKET), Key: key });
+      const data = await s3Client.send(cmd);
+      archive.append(data.Body, { name: rel });
     }
-    await Promise.all(Array.from({ length: concurrency }, () => work()));
-    archive.finalize();
+    await archive.finalize();
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error('ZIP error', e);
@@ -325,7 +319,7 @@ app.post('/admin/shares/delete', requireAdmin, (req, res) => {
 
 // Public share route
 app.get('/s/:id', async (req, res) => {
-  const share = getShareById(req.params.id);
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
     return res.render('public/enter-password', { id: share.id, error: null });
@@ -344,8 +338,8 @@ app.get('/s/:id', async (req, res) => {
   }
 });
 
-app.post('/s/:id', (req, res) => {
-  const share = getShareById(req.params.id);
+app.post('/s/:id', async (req, res) => {
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   const { password } = req.body;
   if (verifySharePassword(share, password)) {
@@ -357,7 +351,7 @@ app.post('/s/:id', (req, res) => {
 
 // Public upload to editable share
 app.post('/s/:id/upload', upload.array('photos'), async (req, res) => {
-  const share = getShareById(req.params.id);
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
     return res.status(403).send('Password required');
