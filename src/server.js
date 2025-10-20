@@ -243,7 +243,7 @@ app.get('/api/share/:id', async (req, res) => {
 
 // Thumbnail generator for items within a share
 app.get('/s/:id/thumb', async (req, res) => {
-  const share = getShareById(req.params.id);
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
     return res.status(403).send('Password required');

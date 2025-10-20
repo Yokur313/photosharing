@@ -5,7 +5,7 @@
       <h2 style="margin:6px 0 0 0"><%= share.folderKey %></h2>
     </div>
     <div class="row">
-      <form id="selected-download" method="post" action="/s/<%= share.id %>/download-selected.zip" style="display:inline-flex;gap:8px;align-items:center">
+      <form id="selected-download" method="get" action="/s/<%= share.id %>/download.zip" style="display:inline-flex;gap:8px;align-items:center">
         <input type="hidden" name="keys" id="selected-keys" value="" />
         <button type="submit" class="secondary" id="download-selected" disabled>Download selected</button>
       </form>
