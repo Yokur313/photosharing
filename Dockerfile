@@ -4,8 +4,13 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --omit=dev
+# Install system deps needed for native modules (e.g., sharp)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies (use install to avoid lockfile mismatch failures in CI)
+RUN npm install --omit=dev --no-audit --no-fund
 
 # Copy source code
 COPY . .
