@@ -50,18 +50,9 @@
   form.addEventListener('submit', (e) => {
     const vals = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
     if (vals.length === 0) { e.preventDefault(); return; }
-    // Send as URL-encoded keys[]=... entries for compatibility
-    const params = new URLSearchParams();
-    vals.forEach(v => params.append('keys[]', v));
-    fetch(form.action, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
-      .then(r => { if (r.ok) return r.blob(); throw new Error('download failed'); })
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'selection.zip';
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      })
-      .catch(()=>{})
-      .finally(()=>{});
+    const q = new URLSearchParams();
+    vals.forEach(v => q.append('keys[]', v));
+    window.location.href = `${form.action}?${q.toString()}`;
     e.preventDefault();
   });
 })();

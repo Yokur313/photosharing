@@ -225,7 +225,7 @@ app.get('/admin/sign', requireAdmin, async (req, res) => {
 
 // JSON API for GitHub Pages frontend
 app.get('/api/share/:id', async (req, res) => {
-  const share = getShareById(req.params.id);
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).json({ error: 'not_found' });
   if (share.passwordHash) return res.status(403).json({ error: 'password_required' });
   try {
@@ -269,14 +269,29 @@ app.get('/s/:id/thumb', async (req, res) => {
 });
 
 app.get('/s/:id/download.zip', async (req, res) => {
-  const share = getShareById(req.params.id);
+  const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
     return res.status(403).send('Password required');
   }
   const folderKey = share.folderKey.replace(/\/?$/, '/');
   try {
-    const objects = await listAllRecursive(folderKey);
+    // If specific keys are requested (selected download), validate against share folder
+    const rawKeysArr = req.query['keys[]'];
+    const rawKeys = req.query['keys'];
+    let selected = [];
+    if (Array.isArray(rawKeysArr) && rawKeysArr.length) selected = rawKeysArr;
+    else if (typeof rawKeys === 'string' && rawKeys.length) selected = rawKeys.split(',');
+
+    let objects;
+    if (selected.length > 0) {
+      const base = folderKey;
+      const valid = selected.filter(k => typeof k === 'string' && k.startsWith(base));
+      if (valid.length === 0) return res.status(400).send('Invalid files');
+      objects = valid.map(k => ({ Key: k }));
+    } else {
+      objects = await listAllRecursive(folderKey);
+    }
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(folderKey.split('/').filter(Boolean).pop() || 'folder')}.zip"`);
     req.setTimeout(0);
