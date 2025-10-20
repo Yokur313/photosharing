@@ -1,12 +1,15 @@
 <section class="card">
   <div class="row" style="justify-content:space-between;align-items:center">
-    <h2>Shared Folder</h2>
+    <div>
+      <div class="muted" style="font-size:12px;line-height:1">Shared Folder</div>
+      <h2 style="margin:6px 0 0 0"><%= share.folderKey %></h2>
+    </div>
     <div class="row">
       <form id="selected-download" method="post" action="/s/<%= share.id %>/download-selected.zip" style="display:inline-flex;gap:8px;align-items:center">
         <input type="hidden" name="keys" id="selected-keys" value="" />
         <button type="submit" class="secondary" id="download-selected" disabled>Download selected</button>
       </form>
-      <a id="download-all" class="secondary" href="/s/<%= share.id %>/download.zip">Download all</a>
+      <button id="download-all" class="secondary" type="button" onclick="location.href='/s/<%= share.id %>/download.zip'">Download all</button>
     </div>
   </div>
   <p class="muted"><%= share.folderKey %></p>

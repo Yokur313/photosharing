@@ -139,6 +139,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
 });
 
 const upload = multer({ storage: multer.memoryStorage() });
+const parseNone = multer().none();
 
 app.post('/admin/upload', requireAdmin, upload.array('photos'), async (req, res) => {
   const prefix = (req.body.prefix || '').toString();
@@ -302,7 +303,7 @@ app.get('/s/:id/download.zip', async (req, res) => {
 });
 
 // Download selected files as ZIP
-app.all('/s/:id/download-selected.zip', async (req, res) => {
+app.post('/s/:id/download-selected.zip', parseNone, async (req, res) => {
   const share = await getShareByIdAsync(req.params.id);
   if (!share) return res.status(404).send('Share not found');
   if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
@@ -347,19 +348,19 @@ app.all('/s/:id/download-selected.zip', async (req, res) => {
 });
 
 // Shares management
-app.get('/admin/shares', requireAdmin, (req, res) => {
-  res.render('admin/shares', { shares: listShares() });
+app.get('/admin/shares', requireAdmin, async (req, res) => {
+  res.render('admin/shares', { shares: await listSharesAsync() });
 });
 
-app.post('/admin/shares', requireAdmin, (req, res) => {
+app.post('/admin/shares', requireAdmin, async (req, res) => {
   const { folderKey, password } = req.body;
-  const share = createShare({ folderKey, password });
+  await createShareAsync({ folderKey, password });
   res.redirect('/admin/shares');
 });
 
-app.post('/admin/shares/delete', requireAdmin, (req, res) => {
+app.post('/admin/shares/delete', requireAdmin, async (req, res) => {
   const { id } = req.body;
-  removeShare(id);
+  await deleteShareAsync(id);
   res.redirect('/admin/shares');
 });
 
