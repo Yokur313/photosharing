@@ -17,9 +17,13 @@
       <div class="od-inline">
         <form id="od-upload-form" class="od-inline" action="/admin/upload" method="post" enctype="multipart/form-data">
           <input type="hidden" name="prefix" value="<%= prefix %>">
-          <input id="od-file-input" type="file" name="photos" multiple accept="image/*">
+          <input id="od-file-input" type="file" name="photos" multiple accept="image/*,.heic,.heif">
           <button type="submit">Upload</button>
         </form>
+      </div>
+      <div id="od-upload-progress" class="upload-progress" style="min-width:220px;max-width:320px" hidden>
+        <div class="upload-progress-track"><div class="upload-progress-bar bar" style="width:0%"></div></div>
+        <p class="upload-progress-detail detail muted" style="margin:6px 0 0;font-size:12px"></p>
       </div>
       <button id="od-share-btn" class="od-btn" data-folder="<%= prefix %>">Share</button>
       <a class="secondary od-btn" href="/logout">Logout</a>
@@ -72,7 +76,22 @@
   </div>
 </section>
 
+<script src="/public/upload-progress.js"></script>
 <script src="/public/ui.js"></script>
+<script>
+(function(){
+  var form = document.getElementById('od-upload-form');
+  var z = document.getElementById('od-upload-progress');
+  if (form && z && window.bindFormUploadProgress) {
+    window.bindFormUploadProgress(form, {
+      progressEl: z,
+      barEl: z.querySelector('.bar'),
+      detailEl: z.querySelector('.detail'),
+      reloadOnSuccess: true
+    });
+  }
+})();
+</script>
 <div id="preview-modal" class="modal" hidden>
   <div class="modal-backdrop"></div>
   <div class="modal-content">

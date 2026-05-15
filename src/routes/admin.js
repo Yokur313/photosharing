@@ -163,8 +163,9 @@ export function createAdminRouter(upload) {
   });
 
   router.post('/shares', requireAdmin, async (req, res) => {
-    const { folderKey, password } = req.body;
-    await createShareAsync({ folderKey, password });
+    const { folderKey, password, editable } = req.body;
+    const allowUpload = editable === '1' || editable === 'on' || editable === true;
+    await createShareAsync({ folderKey, password, editable: allowUpload });
     res.redirect('/admin/shares');
   });
 

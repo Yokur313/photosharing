@@ -4,10 +4,8 @@ import multer from 'multer';
 import sharp from 'sharp';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import {
-  listPrefix,
   putObject,
   joinKey,
-  signGetUrl,
   listAllRecursive,
   getEnvConfig,
   getS3,
@@ -179,13 +177,7 @@ export function createPublicShareRouter(upload) {
       return res.render('public/enter-password', { id: share.id, error: null });
     }
     try {
-      const { folders, files } = await listPrefix(share.folderKey);
-      const items = [];
-      for (const f of files) {
-        const url = await signGetUrl(f.key, 3600);
-        items.push({ ...f, url });
-      }
-      res.render('public/gallery', { share, folders, items });
+      res.render('public/gallery', { share, folders: [], items: [] });
     } catch {
       res.status(500).send('Error loading shared folder');
     }

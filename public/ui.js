@@ -20,6 +20,29 @@
     const formData = new FormData();
     formData.append('prefix', currentPrefix());
     Array.from(files).forEach(f => formData.append('photos', f));
+    const z = document.getElementById('od-upload-progress');
+    const bar = z && z.querySelector('.bar');
+    const det = z && z.querySelector('.detail');
+    if (z) z.hidden = false;
+    if (bar) bar.style.width = '0%';
+    if (det) det.textContent = 'Uploading…';
+    if (window.uploadWithProgress) {
+      window.uploadWithProgress({
+        url: '/admin/upload',
+        method: 'POST',
+        body: formData,
+        onProgress: function(p){
+          if (bar) bar.style.width = p.percent + '%';
+          if (det && window.uploadFormatBytes) det.textContent = p.percent + '% · ' + window.uploadFormatBytes(p.loaded) + ' / ' + window.uploadFormatBytes(p.total) + ' · ' + p.speedLabel;
+        },
+        onDone: function(xhr){
+          if (xhr.status >= 200 && xhr.status < 400) window.location.reload();
+          else if (det) det.textContent = 'Error (' + xhr.status + ')';
+        },
+        onFail: function(){ if (det) det.textContent = 'Network error'; }
+      });
+      return;
+    }
     fetch('/admin/upload', { method: 'POST', body: formData })
       .then(() => window.location.reload())
       .catch(() => window.location.reload());
@@ -43,7 +66,9 @@
 
   if (fileInput && uploadForm) {
     fileInput.addEventListener('change', () => {
-      uploadForm.submit();
+      if (!fileInput.files || !fileInput.files.length) return;
+      if (uploadForm.requestSubmit) uploadForm.requestSubmit();
+      else uploadForm.submit();
     });
   }
 

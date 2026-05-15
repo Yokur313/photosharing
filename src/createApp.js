@@ -20,12 +20,16 @@ export function createApp() {
   app.use(expressLayouts);
   app.set('layout', 'layout');
   app.use('/public', express.static(path.join(process.cwd(), 'public')));
-  app.get('/viewer', (req, res) => {
-    res.redirect(301, '/viewer/');
+  const viewerDir = path.join(process.cwd(), 'public', 'viewer');
+  // Avoid 301 /viewer ↔ /viewer/ loops behind some proxies; serve index without redirects.
+  app.get(['/viewer', '/viewer/'], (req, res) => {
+    res.type('html');
+    res.sendFile('index.html', { root: viewerDir, maxAge: 0 });
   });
   app.use(
     '/viewer',
-    express.static(path.join(process.cwd(), 'public', 'viewer'), {
+    express.static(viewerDir, {
+      index: false,
       extensions: ['html'],
     })
   );

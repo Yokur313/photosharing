@@ -6,9 +6,27 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:
 .site-header{background:var(--card);border-bottom:1px solid var(--border)}
 .site-header .container{display:flex;align-items:center;gap:16px}
 .site-header h1{font-size:16px;margin:0;color:var(--text);font-weight:600;letter-spacing:.2px}
-.site-header nav{display:flex;gap:8px;margin-left:auto;align-items:center}
-.site-header a{color:var(--text);text-decoration:none;padding:6px 8px;border-radius:6px;border:1px solid transparent}
-.site-header a:hover{border-color:var(--border)}
+.site-header nav.site-nav{display:flex;gap:8px;margin-left:auto;align-items:center;flex-wrap:wrap}
+.site-header nav a{color:var(--text);text-decoration:none;padding:6px 10px;border-radius:6px;border:1px solid transparent}
+.site-header nav a:hover{border-color:var(--border);background:var(--bg)}
+.site-menu{position:relative}
+.site-menu-summary{cursor:pointer;list-style:none;padding:6px 10px;border-radius:6px;border:1px solid var(--border);color:var(--text);font-size:14px}
+.site-menu summary::-webkit-details-marker{display:none}
+.site-menu[open] .site-menu-summary{border-color:var(--text)}
+.site-menu-panel{
+  position:absolute;right:0;top:100%;margin-top:8px;min-width:220px;padding:8px;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.12);z-index:100;display:flex;flex-direction:column;gap:4px
+}
+[data-theme="dark"] .site-menu-panel{box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.site-menu-panel a{
+  display:block;padding:10px 12px;border-radius:8px;color:var(--text);text-decoration:none;border:1px solid transparent
+}
+.site-menu-panel a:hover{background:var(--bg);border-color:var(--border)}
+.site-nav button.secondary{padding:6px 10px;border-radius:6px;font-size:14px}
+.upload-progress{margin-top:12px}
+.upload-progress-track{height:8px;background:var(--border);border-radius:6px;overflow:hidden}
+.upload-progress-bar{height:100%;width:0;background:var(--text);transition:width .12s ease}
 .card{background:var(--card);padding:16px;border-radius:12px;border:1px solid var(--border)}
 form{display:flex;flex-direction:column;gap:12px}
 label{font-size:14px;color:var(--muted)}
@@ -27,7 +45,7 @@ button.secondary:hover{border-color:var(--text)}
 .tile:hover input.sel{opacity:1}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 table{width:100%;border-collapse:collapse}
-th,td{padding:10px;border-bottom:1px solid #1e2745}
+th,td{padding:10px;border-bottom:1px solid var(--border)}
 .muted{color:var(--muted)}
 
 /* OneDrive-like UI */

@@ -9,53 +9,238 @@
         <input type="hidden" name="keys" id="selected-keys" value="" />
         <button type="submit" class="secondary" id="download-selected" disabled>Download selected</button>
       </form>
-      <button id="download-all" class="secondary" type="button" onclick="location.href='/s/<%= share.id %>/download.zip'">Download all</button>
+      <button id="download-all" class="secondary" type="button">Download all</button>
     </div>
   </div>
-  <p class="muted"><%= share.folderKey %></p>
-  <div class="grid">
-    <% items.forEach(item => { %>
-      <label class="tile" style="position:relative;cursor:pointer">
-        <input type="checkbox" class="sel" value="<%= item.key %>" style="z-index:2">
-        <a href="<%= item.url %>" target="_blank" style="text-decoration:none;color:inherit">
-          <div class="thumb">
-            <img src="/s/<%= share.id %>/thumb?key=<%= encodeURIComponent(item.key || item.url) %>&w=256&h=256" alt="<%= item.name %>" loading="lazy" />
-          </div>
-        </a>
-      </label>
-    <% }) %>
-  </div>
+  <p class="muted" id="gallery-status">Loading photos…</p>
+  <div id="photo-grid" class="grid"></div>
+  <div id="gallery-sentinel" class="muted" style="text-align:center;padding:16px;min-height:24px"></div>
+
   <% if (share.editable) { %>
   <hr />
-  <form class="row" method="post" action="/s/<%= share.id %>/upload" enctype="multipart/form-data">
-    <input type="file" name="photos" multiple accept="image/*" />
-    <button type="submit">Add photos</button>
-  </form>
+  <div id="share-upload-wrap">
+    <p class="muted" style="margin-top:0">Add photos (library or camera on phone)</p>
+    <form id="share-upload-form" class="row" method="post" action="/s/<%= share.id %>/upload" enctype="multipart/form-data" data-with-credentials="true" style="flex-wrap:wrap;align-items:flex-end">
+      <label class="muted" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+        From library
+        <input type="file" id="share-photos-lib" name="photos" multiple accept="image/*,.heic,.heif" />
+      </label>
+      <label class="muted" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+        Take photo
+        <input type="file" id="share-photos-cam" name="photos" accept="image/*" capture="environment" />
+      </label>
+      <button type="submit" id="share-upload-btn">Upload</button>
+    </form>
+    <div id="share-upload-progress" class="upload-progress" hidden>
+      <div class="upload-progress-track"><div class="upload-progress-bar bar"></div></div>
+      <p class="upload-progress-detail detail muted" style="margin:8px 0 0;font-size:13px"></p>
+    </div>
+  </div>
   <% } %>
 </section>
 
+<div id="preview-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close">✕</button>
+    <img id="preview-image" alt="preview" />
+  </div>
+</div>
+
+<script src="/public/upload-progress.js"></script>
 <script>
 (function(){
-  const form = document.getElementById('selected-download');
-  if (!form) return;
-  const btn = document.getElementById('download-selected');
-  const hidden = document.getElementById('selected-keys');
-  function update(){
-    const sel = Array.from(document.querySelectorAll('input.sel:checked')).map(i => i.value);
-    btn.disabled = sel.length === 0;
-    btn.textContent = sel.length ? `Download selected (${sel.length})` : 'Download selected';
-    hidden.value = sel.join(',');
+  var shareId = <%- JSON.stringify(share.id) %>;
+  var pageSize = 36;
+  var offset = 0;
+  var total = 0;
+  var loading = false;
+  var done = false;
+  var grid = document.getElementById('photo-grid');
+  var statusEl = document.getElementById('gallery-status');
+  var sentinel = document.getElementById('gallery-sentinel');
+  var dlAll = document.getElementById('download-all');
+  if (dlAll) dlAll.addEventListener('click', function(){ location.href = '/s/' + encodeURIComponent(shareId) + '/download.zip'; });
+
+  function thumbUrl(key) {
+    return '/s/' + encodeURIComponent(shareId) + '/thumb?key=' + encodeURIComponent(key) + '&w=256&h=256';
   }
-  document.querySelectorAll('input.sel').forEach(cb => cb.addEventListener('change', update));
-  form.addEventListener('submit', (e) => {
-    const vals = hidden.value ? hidden.value.split(',').filter(Boolean) : [];
-    if (vals.length === 0) { e.preventDefault(); return; }
-    const q = new URLSearchParams();
-    vals.forEach(v => q.append('keys[]', v));
-    window.location.href = `${form.action}?${q.toString()}`;
-    e.preventDefault();
+
+  function appendTile(item) {
+    var label = document.createElement('label');
+    label.className = 'tile';
+    label.style.position = 'relative';
+    label.style.cursor = 'pointer';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'sel';
+    cb.value = item.key;
+    cb.style.cssText = 'z-index:2';
+    var a = document.createElement('a');
+    a.href = item.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.cssText = 'text-decoration:none;color:inherit';
+    var thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    var img = document.createElement('img');
+    img.alt = item.name || '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.width = 256;
+    img.height = 256;
+    img.src = thumbUrl(item.key);
+    thumb.appendChild(img);
+    a.appendChild(thumb);
+    a.addEventListener('click', function(ev){ ev.preventDefault(); openPreview(item.url); });
+    label.appendChild(cb);
+    label.appendChild(a);
+    grid.appendChild(label);
+  }
+
+  function openPreview(url) {
+    var m = document.getElementById('preview-modal');
+    var im = document.getElementById('preview-image');
+    if (!m || !im) return;
+    im.src = url;
+    m.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closePreview() {
+    var m = document.getElementById('preview-modal');
+    var im = document.getElementById('preview-image');
+    if (!m || !im) return;
+    m.hidden = true;
+    im.src = '';
+    document.body.style.overflow = '';
+  }
+  (function bindModal(){
+    var m = document.getElementById('preview-modal');
+    if (!m) return;
+    m.querySelector('.modal-backdrop').addEventListener('click', closePreview);
+    m.querySelector('.modal-close').addEventListener('click', closePreview);
+    var img = m.querySelector('img');
+    if (img) img.addEventListener('click', closePreview);
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !m.hidden) closePreview(); });
+  })();
+
+  function updateSelectionUi() {
+    var form = document.getElementById('selected-download');
+    if (!form) return;
+    var btn = document.getElementById('download-selected');
+    var hidden = document.getElementById('selected-keys');
+    var sel = Array.prototype.slice.call(document.querySelectorAll('#photo-grid input.sel:checked')).map(function(i){ return i.value; });
+    if (btn) {
+      btn.disabled = sel.length === 0;
+      btn.textContent = sel.length ? ('Download selected (' + sel.length + ')') : 'Download selected';
+    }
+    if (hidden) hidden.value = sel.join(',');
+  }
+
+  document.getElementById('photo-grid').addEventListener('change', function(e){
+    if (e.target && e.target.classList && e.target.classList.contains('sel')) updateSelectionUi();
   });
+
+  var formSel = document.getElementById('selected-download');
+  if (formSel) {
+    formSel.addEventListener('submit', function(e) {
+      var hidden = document.getElementById('selected-keys');
+      var vals = hidden && hidden.value ? hidden.value.split(',').filter(Boolean) : [];
+      if (vals.length === 0) { e.preventDefault(); return; }
+      var q = new URLSearchParams();
+      vals.forEach(function(v){ q.append('keys[]', v); });
+      window.location.href = formSel.action + '?' + q.toString();
+      e.preventDefault();
+    });
+  }
+
+  function setStatus(text) {
+    if (statusEl) statusEl.textContent = text;
+  }
+
+  function loadNext() {
+    if (loading || done) return;
+    loading = true;
+    setStatus(total ? ('Showing ' + grid.children.length + ' of ' + total + '…') : 'Loading…');
+    fetch('/api/share/' + encodeURIComponent(shareId) + '/items?offset=' + offset + '&limit=' + pageSize, { credentials: 'same-origin' })
+      .then(function(r){
+        if (r.status === 403) { setStatus('Session expired — refresh the page.'); done = true; return null; }
+        if (!r.ok) throw new Error('load');
+        return r.json();
+      })
+      .then(function(data){
+        if (!data) return;
+        total = data.total;
+        (data.items || []).forEach(appendTile);
+        offset += (data.items || []).length;
+        done = !data.hasMore || offset >= total;
+        if (done) {
+          setStatus(total ? ('Showing all ' + total + ' photo' + (total === 1 ? '' : 's')) : 'No photos in this folder.');
+          if (sentinel) sentinel.textContent = '';
+        } else {
+          setStatus('Showing ' + offset + ' of ' + total + ' — scroll for more');
+          if (sentinel) sentinel.textContent = 'Scroll down to load more';
+        }
+        updateSelectionUi();
+      })
+      .catch(function(){ setStatus('Could not load photos.'); done = true; })
+      .finally(function(){ loading = false; });
+  }
+
+  if ('IntersectionObserver' in window && sentinel) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting && !done && !loading) loadNext();
+      });
+    }, { rootMargin: '400px' });
+    io.observe(sentinel);
+  } else if (sentinel) {
+    window.addEventListener('scroll', function(){
+      if (done || loading) return;
+      var r = sentinel.getBoundingClientRect();
+      if (r.top < window.innerHeight + 500) loadNext();
+    }, { passive: true });
+  }
+  loadNext();
+
+  var upForm = document.getElementById('share-upload-form');
+  if (upForm && window.uploadWithProgress) {
+    var libIn = document.getElementById('share-photos-lib');
+    var camIn = document.getElementById('share-photos-cam');
+    upForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      var hasLib = libIn && libIn.files && libIn.files.length;
+      var hasCam = camIn && camIn.files && camIn.files.length;
+      if (!hasLib && !hasCam) return;
+      var fd = new FormData();
+      if (hasLib) {
+        for (var i = 0; i < libIn.files.length; i++) fd.append('photos', libIn.files[i]);
+      }
+      if (hasCam) {
+        for (var j = 0; j < camIn.files.length; j++) fd.append('photos', camIn.files[j]);
+      }
+      var box = document.getElementById('share-upload-progress');
+      var bar = document.querySelector('#share-upload-progress .bar');
+      var det = document.querySelector('#share-upload-progress .detail');
+      if (box) box.hidden = false;
+      if (bar) bar.style.width = '0%';
+      if (det) det.textContent = 'Starting…';
+      window.uploadWithProgress({
+        url: upForm.action,
+        method: 'POST',
+        body: fd,
+        withCredentials: true,
+        onProgress: function(p){
+          if (bar) bar.style.width = p.percent + '%';
+          if (det) det.textContent = p.percent + '% · ' + window.uploadFormatBytes(p.loaded) + ' / ' + window.uploadFormatBytes(p.total) + ' · ' + p.speedLabel;
+        },
+        onDone: function(xhr){
+          if (xhr.status >= 200 && xhr.status < 400) location.reload();
+          else if (det) det.textContent = 'Error (' + xhr.status + ')';
+        },
+        onFail: function(){ if (det) det.textContent = 'Network error'; }
+      });
+    });
+  }
 })();
 </script>
-
-

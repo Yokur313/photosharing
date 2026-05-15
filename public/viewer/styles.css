@@ -24,8 +24,9 @@ button.secondary{background:#283455;color:#e5ecf3}
 table{width:100%;border-collapse:collapse}
 th,td{padding:10px;border-bottom:1px solid var(--border)}
 .muted{color:var(--muted)}
-
-/* Modal */
+.upload-progress{margin-top:12px}
+.upload-progress-track{height:8px;background:var(--border);border-radius:6px;overflow:hidden}
+.upload-progress-bar{height:100%;width:0;background:var(--accent);transition:width .12s ease}
 .modal{position:fixed;inset:0;display:block;z-index:1000}
 .modal[hidden]{display:none}
 .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.5);cursor:zoom-out}

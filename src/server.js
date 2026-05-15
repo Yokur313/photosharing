@@ -12,5 +12,5 @@ app.listen(port, () => {
   console.log(
     `S3 config: bucket=${process.env.PROD_S3_BUCKET || process.env.S3_BUCKET || '(unset)'} endpoint=${process.env.PROD_S3_ENDPOINT || process.env.S3_ENDPOINT || `https://s3.${process.env.PROD_S3_REGION || process.env.S3_REGION || 'fr-par'}.scw.cloud`}`
   );
-  console.log(`Share viewer (static): http://localhost:${port}/viewer/`);
+  console.log(`Share viewer (static): http://localhost:${port}/viewer`);
 });

@@ -3,18 +3,23 @@
     <h2>Share Links</h2>
     <a class="secondary" href="/admin">Back</a>
   </div>
-  <form class="row" method="post" action="/admin/shares">
+  <form class="row" method="post" action="/admin/shares" style="flex-wrap:wrap;align-items:flex-end">
     <input type="text" name="folderKey" placeholder="folder/key" required />
     <input type="password" name="password" placeholder="optional password" />
+    <label class="muted" style="display:flex;align-items:center;gap:8px;font-size:14px;white-space:nowrap">
+      <input type="checkbox" name="editable" value="1" />
+      Guests can upload
+    </label>
     <button type="submit">Create Share</button>
   </form>
   <table>
-    <thead><tr><th>Folder</th><th>Password</th><th>Link</th><th></th></tr></thead>
+    <thead><tr><th>Folder</th><th>Password</th><th>Guest uploads</th><th>Link</th><th></th></tr></thead>
     <tbody>
       <% shares.forEach(s => { %>
         <tr>
           <td class="muted"><%= s.folderKey %></td>
           <td><%= s.passwordHash ? 'yes' : 'no' %></td>
+          <td><%= s.editable ? 'yes' : 'no' %></td>
           <td><a href="/s/<%= s.id %>" target="_blank">/s/<%= s.id %></a></td>
           <td>
             <form method="post" action="/admin/shares/delete" style="display:inline">
@@ -27,5 +32,4 @@
     </tbody>
   </table>
 </section>
-
 

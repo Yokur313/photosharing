@@ -23,7 +23,10 @@
         <p class="muted" id="folder-label"></p>
         <a id="zip-link" class="secondary" href="#" target="_blank" rel="noopener">Download ZIP</a>
       </div>
+      <p class="muted" id="share-status">Loading…</p>
       <div id="grid" class="grid"></div>
+      <div id="share-sentinel" class="muted" style="text-align:center;padding:16px;min-height:24px"></div>
+      <div id="upload-section" hidden></div>
     </section>
   </main>
 
@@ -36,31 +39,35 @@
   </div>
 
   <script src="./theme.js"></script>
+  <script src="/public/upload-progress.js"></script>
   <script>
     const q = new URLSearchParams(location.search);
     const shareId = q.get('id');
     if (!shareId) location.replace('./index.html');
 
-    async function fetchShare() {
-      const r = await fetch(window.apiUrl(`/api/share/${encodeURIComponent(shareId)}`));
-      if (!r.ok) throw new Error('Failed to load share');
-      return r.json(); // { id, folderKey, items:[{name,size,url}] , editable:boolean }
-    }
+    const pageSize = 36;
+    let offset = 0;
+    let total = 0;
+    let loading = false;
+    let done = false;
+    const grid = document.getElementById('grid');
+    const statusEl = document.getElementById('share-status');
+    const sentinel = document.getElementById('share-sentinel');
+    const uploadSection = document.getElementById('upload-section');
 
-    function byId(id){ return document.getElementById(id); }
+    function byId(id) { return document.getElementById(id); }
 
-    function openPreview(url){
+    function openPreview(url) {
       const m = byId('preview-modal'), img = byId('preview-image');
       if (!m || !img) return;
       img.src = url; m.hidden = false; document.body.style.overflow = 'hidden';
     }
-    function closePreview(){
+    function closePreview() {
       const m = byId('preview-modal'), img = byId('preview-image');
       if (!m || !img) return;
       m.hidden = true; img.src = ''; document.body.style.overflow = '';
     }
-
-    (function bindModal(){
+    (function bindModal() {
       const m = byId('preview-modal');
       if (!m) return;
       m.querySelector('.modal-backdrop').addEventListener('click', closePreview);
@@ -69,41 +76,130 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden) closePreview(); });
     })();
 
-    function renderItems(items){
-      const grid = byId('grid'); grid.innerHTML = '';
-      const io = ('IntersectionObserver' in window) ? new IntersectionObserver((entries)=>{
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            const img = e.target; const src = img.getAttribute('data-src');
-            if (src) { img.src = src; img.removeAttribute('data-src'); }
-            io.unobserve(img);
-          }
-        }
-      }, { rootMargin: '200px' }) : null;
-      for (const it of items) {
-        const a = document.createElement('a');
-        a.className = 'tile'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
-        const t = document.createElement('div'); t.className = 'thumb';
-        const thumbUrl = window.apiUrl(`/s/${encodeURIComponent(shareId)}/thumb?key=${encodeURIComponent(it.key || it.name)}&w=256&h=256`);
-        const img = document.createElement('img'); img.alt = it.name; img.loading = 'lazy';
-        if (io) { img.setAttribute('data-src', thumbUrl); } else { img.src = thumbUrl; }
-        t.appendChild(img); a.appendChild(t);
-        a.addEventListener('click',(ev)=>{ ev.preventDefault(); openPreview(it.url); });
-        grid.appendChild(a);
-        if (io) io.observe(img);
-      }
+    function thumbUrl(key) {
+      return window.apiUrl(`/s/${encodeURIComponent(shareId)}/thumb?key=${encodeURIComponent(key)}&w=256&h=256`);
     }
 
-    (async function init(){
-      try {
-        const data = await fetchShare();
-        byId('folder-label').textContent = data.folderKey || '/';
-        byId('zip-link').href = window.apiUrl(`/s/${encodeURIComponent(shareId)}/download.zip`);
-        renderItems(data.items || []);
-      } catch (e) {
-        byId('grid').innerHTML = '<div class="muted">Failed to load shared folder.</div>';
-      }
-    })();
+    function appendTile(it) {
+      const a = document.createElement('a');
+      a.className = 'tile'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
+      const t = document.createElement('div'); t.className = 'thumb';
+      const img = document.createElement('img');
+      img.alt = it.name || '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.width = 256; img.height = 256;
+      img.src = thumbUrl(it.key || it.name);
+      t.appendChild(img);
+      a.appendChild(t);
+      a.addEventListener('click', (ev) => { ev.preventDefault(); openPreview(it.url); });
+      grid.appendChild(a);
+    }
+
+    function setStatus(t) { if (statusEl) statusEl.textContent = t; }
+
+    function buildUpload(data) {
+      if (!data.editable) return;
+      uploadSection.hidden = false;
+      uploadSection.innerHTML = `
+        <hr />
+        <p class="muted" style="margin-top:0">Add photos (library or camera)</p>
+        <form id="viewer-upload-form" class="row" style="flex-wrap:wrap;align-items:flex-end" method="post" action="${window.apiUrl('/s/' + encodeURIComponent(shareId) + '/upload')}">
+          <label class="muted" style="display:flex;flex-direction:column;gap:6px;font-size:13px">From library
+            <input type="file" id="vu-lib" name="photos" multiple accept="image/*,.heic,.heif" />
+          </label>
+          <label class="muted" style="display:flex;flex-direction:column;gap:6px;font-size:13px">Take photo
+            <input type="file" id="vu-cam" name="photos" accept="image/*" capture="environment" />
+          </label>
+          <button type="submit">Upload</button>
+        </form>
+        <div id="vu-progress" class="upload-progress" hidden>
+          <div class="upload-progress-track"><div class="upload-progress-bar bar" style="width:0%"></div></div>
+          <p class="upload-progress-detail detail muted" style="margin:8px 0 0;font-size:13px"></p>
+        </div>`;
+      const form = document.getElementById('viewer-upload-form');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const lib = document.getElementById('vu-lib');
+        const cam = document.getElementById('vu-cam');
+        const hasLib = lib && lib.files && lib.files.length;
+        const hasCam = cam && cam.files && cam.files.length;
+        if (!hasLib && !hasCam) return;
+        const fd = new FormData();
+        if (hasLib) for (let i = 0; i < lib.files.length; i++) fd.append('photos', lib.files[i]);
+        if (hasCam) for (let j = 0; j < cam.files.length; j++) fd.append('photos', cam.files[j]);
+        const box = document.getElementById('vu-progress');
+        const bar = box && box.querySelector('.bar');
+        const det = box && box.querySelector('.detail');
+        if (box) box.hidden = false;
+        if (bar) bar.style.width = '0%';
+        if (det) det.textContent = 'Starting…';
+        window.uploadWithProgress({
+          url: form.action,
+          method: 'POST',
+          body: fd,
+          withCredentials: true,
+          onProgress: (p) => {
+            if (bar) bar.style.width = `${p.percent}%`;
+            if (det) det.textContent = `${p.percent}% · ${window.uploadFormatBytes(p.loaded)} / ${window.uploadFormatBytes(p.total)} · ${p.speedLabel}`;
+          },
+          onDone: (xhr) => { if (xhr.status >= 200 && xhr.status < 400) location.reload(); else if (det) det.textContent = `Error (${xhr.status})`; },
+          onFail: () => { if (det) det.textContent = 'Network error'; },
+        });
+      });
+    }
+
+    let headerDone = false;
+
+    function loadNext() {
+      if (loading || done) return;
+      loading = true;
+      setStatus(total ? `Showing ${grid.children.length} of ${total}…` : 'Loading…');
+      fetch(window.apiUrl(`/api/share/${encodeURIComponent(shareId)}/items?offset=${offset}&limit=${pageSize}`), { credentials: 'include' })
+        .then((r) => {
+          if (r.status === 403) { setStatus('This share requires a password — open it from the main site first.'); done = true; return null; }
+          if (!r.ok) throw new Error('load');
+          return r.json();
+        })
+        .then((data) => {
+          if (!data) return;
+          if (!headerDone) {
+            headerDone = true;
+            const label = byId('folder-label');
+            if (label) label.textContent = data.folderKey || '/';
+            byId('zip-link').href = window.apiUrl(`/s/${encodeURIComponent(shareId)}/download.zip`);
+            buildUpload(data);
+          }
+          total = data.total;
+          (data.items || []).forEach(appendTile);
+          offset += (data.items || []).length;
+          done = !data.hasMore || offset >= total;
+          if (done) {
+            setStatus(total ? `Showing all ${total} photo${total === 1 ? '' : 's'}` : 'No photos in this folder.');
+            if (sentinel) sentinel.textContent = '';
+          } else {
+            setStatus(`Showing ${offset} of ${total} — scroll for more`);
+            if (sentinel) sentinel.textContent = 'Scroll down to load more';
+          }
+        })
+        .catch(() => { setStatus('Failed to load shared folder.'); done = true; })
+        .finally(() => { loading = false; });
+    }
+
+    if ('IntersectionObserver' in window && sentinel) {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((en) => { if (en.isIntersecting && !done && !loading) loadNext(); });
+      }, { rootMargin: '400px' });
+      io.observe(sentinel);
+    } else if (sentinel) {
+      window.addEventListener('scroll', () => {
+        if (done || loading) return;
+        const r = sentinel.getBoundingClientRect();
+        if (r.top < window.innerHeight + 500) loadNext();
+      }, { passive: true });
+    }
+
+    loadNext();
   </script>
 </body>
 </html>
