@@ -30,6 +30,13 @@
     </div>
   </div>
 
+  <% if (typeof latestShare !== 'undefined' && latestShare && latestShare.id && prefix) { %>
+    <div class="muted" style="padding:0 0 14px 2px;font-size:14px;line-height:1.45">
+      Latest share link for this folder:
+      <a href="/s/<%= latestShare.id %>" target="_blank" rel="noopener">/s/<%= latestShare.id %></a>
+    </div>
+  <% } %>
+
   <div id="od-dropzone" class="od-dropzone">
     <div class="od-list">
       <div class="od-list-head">

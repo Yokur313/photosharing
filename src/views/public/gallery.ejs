@@ -62,8 +62,55 @@
   var dlAll = document.getElementById('download-all');
   if (dlAll) dlAll.addEventListener('click', function(){ location.href = '/s/' + encodeURIComponent(shareId) + '/download.zip'; });
 
+  var MAX_THUMB_INFLIGHT = 5;
+  var thumbInflight = 0;
+  var thumbWait = [];
+  function pumpThumbs() {
+    while (thumbInflight < MAX_THUMB_INFLIGHT && thumbWait.length) {
+      var job = thumbWait.shift();
+      thumbInflight++;
+      job(function done() {
+        thumbInflight--;
+        pumpThumbs();
+      });
+    }
+  }
+  function queueThumbJob(job) {
+    thumbWait.push(job);
+    pumpThumbs();
+  }
+
   function thumbUrl(key) {
     return '/s/' + encodeURIComponent(shareId) + '/thumb?key=' + encodeURIComponent(key) + '&w=480&fit=inside&maxh=3200';
+  }
+
+  function startThumbLoad(img, thumb, url, done) {
+    img.onload = function() {
+      thumb.classList.remove('thumb-loading');
+      thumb.classList.add('thumb-loaded');
+      done();
+    };
+    img.onerror = function() {
+      thumb.classList.remove('thumb-loading');
+      img.classList.add('thumb-load-failed');
+      done();
+    };
+    img.src = url;
+  }
+
+  function observeThumbLoad(img, thumb, url) {
+    if (!('IntersectionObserver' in window)) {
+      queueThumbJob(function (done) { startThumbLoad(img, thumb, url, done); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        io.disconnect();
+        queueThumbJob(function (done) { startThumbLoad(img, thumb, url, done); });
+      });
+    }, { root: null, rootMargin: '200px', threshold: 0.01 });
+    io.observe(thumb);
   }
 
   function appendTile(item) {
@@ -71,6 +118,7 @@
     label.className = 'tile';
     label.style.position = 'relative';
     label.style.cursor = 'pointer';
+    if (item.name) label.setAttribute('aria-label', item.name);
     var cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'sel';
@@ -82,18 +130,33 @@
     a.rel = 'noopener';
     a.style.cssText = 'text-decoration:none;color:inherit';
     var thumb = document.createElement('div');
-    thumb.className = 'thumb';
+    thumb.className = 'thumb thumb-loading';
     var img = document.createElement('img');
-    img.alt = item.name || '';
-    img.loading = 'lazy';
+    img.alt = '';
     img.decoding = 'async';
-    img.src = thumbUrl(item.key);
+    observeThumbLoad(img, thumb, thumbUrl(item.key));
     thumb.appendChild(img);
     a.appendChild(thumb);
     a.addEventListener('click', function(ev){ ev.preventDefault(); openPreview(item.url); });
     label.appendChild(cb);
     label.appendChild(a);
     grid.appendChild(label);
+
+    var retried = false;
+    function retryOnce() {
+      if (retried || !img.classList.contains('thumb-load-failed')) return;
+      retried = true;
+      img.classList.remove('thumb-load-failed');
+      thumb.classList.remove('thumb-loaded');
+      thumb.classList.add('thumb-loading');
+      queueThumbJob(function (done) {
+        startThumbLoad(img, thumb, thumbUrl(item.key) + '&ts=' + Date.now(), done);
+      });
+    }
+    label.addEventListener('pointerenter', retryOnce, { passive: true });
+    label.addEventListener('touchstart', retryOnce, { passive: true });
+    label.setAttribute('tabindex', '0');
+    label.addEventListener('focusin', retryOnce);
   }
 
   function openPreview(url) {

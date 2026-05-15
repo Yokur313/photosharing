@@ -2,6 +2,7 @@ import express from 'express';
 import archiver from 'archiver';
 import multer from 'multer';
 import sharp from 'sharp';
+import { createHash } from 'crypto';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import {
   putObject,
@@ -9,10 +10,21 @@ import {
   listAllRecursive,
   getEnvConfig,
   getS3,
+  objectExists,
+  isThumbnailCacheKey,
 } from '../s3.js';
 import { getShareByIdAsync, verifySharePassword } from '../shareStore.js';
 
 const parseNone = multer().none();
+
+function thumbCacheObjectKey(folderKey, sourceKey, width, maxH, fitMode) {
+  const base = folderKey.replace(/^\//, '').replace(/\/?$/, '/');
+  const h = createHash('sha256')
+    .update(`${sourceKey}|${width}|${maxH}|${fitMode}`)
+    .digest('hex')
+    .slice(0, 48);
+  return joinKey(base, '.thumbnails', `${h}.jpg`);
+}
 
 export function createPublicShareRouter(upload) {
   const router = express.Router();
@@ -27,34 +39,56 @@ export function createPublicShareRouter(upload) {
     if (!key || !key.startsWith(share.folderKey.replace(/\/?$/, '/'))) {
       return res.status(400).send('Invalid key');
     }
+    if (isThumbnailCacheKey(key)) {
+      return res.status(400).send('Invalid key');
+    }
     const fitRaw = (req.query.fit || 'cover').toString().toLowerCase();
     const fitMode = fitRaw === 'inside' ? 'inside' : 'cover';
     const width = Math.max(32, Math.min(2048, parseInt(req.query.w, 10) || 256));
     const height = Math.max(32, Math.min(4096, parseInt(req.query.h, 10) || width));
     const maxH = Math.max(64, Math.min(4096, parseInt(req.query.maxh, 10) || 3200));
+    const bucketName = getEnvConfig().bucket || process.env.PROD_S3_BUCKET || process.env.S3_BUCKET;
+    const cacheDisabled =
+      process.env.DISABLE_THUMB_CACHE === '1' || String(process.env.DISABLE_THUMB_CACHE || '').toLowerCase() === 'true';
+    const cacheKey = cacheDisabled ? null : thumbCacheObjectKey(share.folderKey, key, width, maxH, fitMode);
+
     try {
-      const { bucket } = getEnvConfig();
       const s3Client = getS3();
+      if (cacheKey && (await objectExists(cacheKey))) {
+        const cached = await s3Client.send(new GetObjectCommand({ Bucket: bucketName, Key: cacheKey }));
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        res.setHeader('Content-Type', 'image/jpeg');
+        return cached.Body.pipe(res);
+      }
+
       const cmd = new GetObjectCommand({
-        Bucket: bucket || process.env.PROD_S3_BUCKET || process.env.S3_BUCKET,
+        Bucket: bucketName,
         Key: key,
       });
       const data = await s3Client.send(cmd);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('Content-Type', 'image/jpeg');
-      const sharpInst = sharp().rotate();
+      const input = Buffer.from(await data.Body.transformToByteArray());
+      let pipeline = sharp(input).rotate();
       if (fitMode === 'inside') {
-        sharpInst.resize({
+        pipeline = pipeline.resize({
           width,
           height: maxH,
           fit: 'inside',
           withoutEnlargement: true,
         });
       } else {
-        sharpInst.resize({ width, height, fit: 'cover' });
+        pipeline = pipeline.resize({ width, height, fit: 'cover' });
       }
-      const transformer = sharpInst.jpeg({ quality: 70, mozjpeg: true });
-      data.Body.pipe(transformer).pipe(res);
+      const outBuf = await pipeline.jpeg({ quality: 70, mozjpeg: true }).toBuffer();
+      if (cacheKey) {
+        try {
+          await putObject(cacheKey, outBuf, 'image/jpeg');
+        } catch (e) {
+          console.warn('thumb cache write failed', cacheKey, e && e.message);
+        }
+      }
+      res.setHeader('Cache-Control', cacheKey ? 'public, max-age=31536000' : 'public, max-age=86400');
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.send(outBuf);
     } catch {
       return res.status(500).send('Failed to create thumbnail');
     }
@@ -88,7 +122,7 @@ export function createPublicShareRouter(upload) {
         const uniq = Array.from(new Set(valid));
         objects = uniq.map((k) => ({ Key: k }));
       } else {
-        objects = await listAllRecursive(folderKey);
+        objects = (await listAllRecursive(folderKey)).filter((o) => o.Key && !isThumbnailCacheKey(o.Key));
       }
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader(
@@ -143,7 +177,9 @@ export function createPublicShareRouter(upload) {
     else if (typeof rawKeysQuery === 'string' && rawKeysQuery.length) keys = rawKeysQuery.split(',');
     if (!Array.isArray(keys) || keys.length === 0) return res.status(400).send('No files selected');
     const base = share.folderKey.replace(/\/?$/, '/');
-    const validKeys = keys.filter((k) => typeof k === 'string' && k.startsWith(base));
+    const validKeys = keys
+      .filter((k) => typeof k === 'string' && k.startsWith(base))
+      .filter((k) => !isThumbnailCacheKey(k));
     if (validKeys.length === 0) return res.status(400).send('Invalid files');
     try {
       res.setHeader('Content-Type', 'application/zip');

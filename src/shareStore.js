@@ -243,6 +243,23 @@ export function verifySharePassword(share, password) {
   return bcrypt.compareSync(password, share.passwordHash);
 }
 
+/** Normalize folder key for comparing share.folderKey with admin prefix (trailing slash). */
+function normalizeShareFolder(fk) {
+  let s = (fk || '').replace(/^\//, '');
+  if (!s) return '';
+  return s.endsWith('/') ? s : `${s}/`;
+}
+
+/** Most recently created share whose folder matches this prefix (exact folder, not subtree). */
+export async function getLatestShareForFolderPrefix(prefix) {
+  const target = normalizeShareFolder(prefix);
+  if (!target) return null;
+  const shares = await listSharesAsync();
+  const matches = shares.filter((s) => normalizeShareFolder(s.folderKey) === target);
+  matches.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return matches[0] || null;
+}
+
 /** @deprecated Prefer async APIs; local disk only reads current layout */
 export function listShares() {
   if (useS3Storage()) {

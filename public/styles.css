@@ -54,6 +54,18 @@ button.secondary:hover{border-color:var(--text)}
 #photo-grid.share-photo-masonry .tile .thumb img{
   width:100%;height:auto;display:block;object-fit:contain;vertical-align:middle
 }
+#photo-grid.share-photo-masonry .tile .thumb.thumb-loading{
+  position:relative;min-height:140px;background:var(--border)
+}
+#photo-grid.share-photo-masonry .tile .thumb.thumb-loading::after{
+  content:'';position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border:2px solid var(--border);border-top-color:var(--muted);border-radius:50%;
+  animation:share-thumb-spin .75s linear infinite
+}
+#photo-grid.share-photo-masonry .tile .thumb.thumb-loaded::after{display:none}
+#photo-grid.share-photo-masonry .tile .thumb.thumb-loading img{opacity:0}
+#photo-grid.share-photo-masonry .tile .thumb.thumb-loaded img{opacity:1;transition:opacity .2s ease}
+@keyframes share-thumb-spin{to{transform:rotate(360deg)}}
 .tile{background:transparent;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative}
 .tile .thumb{aspect-ratio:1/1;background:var(--bg);display:flex;align-items:center;justify-content:center}
 .tile img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .2s ease}

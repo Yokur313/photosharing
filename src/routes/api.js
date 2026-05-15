@@ -1,5 +1,5 @@
 import express from 'express';
-import { listPrefix, signGetUrl } from '../s3.js';
+import { listPrefix, signGetUrl, isThumbnailCacheKey } from '../s3.js';
 import { getShareByIdAsync } from '../shareStore.js';
 
 const router = express.Router();
@@ -20,8 +20,9 @@ router.get('/share/:id/items', async (req, res) => {
   const limit = Math.min(80, Math.max(1, parseInt(String(req.query.limit || '40'), 10) || 40));
   try {
     const { files } = await listPrefix(share.folderKey);
-    const total = files.length;
-    const slice = files.slice(offset, offset + limit);
+    const visible = files.filter((f) => !isThumbnailCacheKey(f.key));
+    const total = visible.length;
+    const slice = visible.slice(offset, offset + limit);
     const items = [];
     for (const f of slice) {
       const url = await signGetUrl(f.key, 3600);
@@ -51,8 +52,9 @@ router.get('/share/:id', async (req, res) => {
   }
   try {
     const { files } = await listPrefix(share.folderKey);
+    const visible = files.filter((f) => !isThumbnailCacheKey(f.key));
     const items = [];
-    for (const f of files) {
+    for (const f of visible) {
       const url = await signGetUrl(f.key, 3600);
       items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url });
     }

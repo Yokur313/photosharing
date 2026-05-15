@@ -112,6 +112,13 @@ export function joinKey(...parts) {
   return joined.replace(/^\/+/, '').replace(/\/+/g, '/');
 }
 
+/** True if key is under a `.thumbnails` cache directory (server-managed; hide from listings and zips). */
+export function isThumbnailCacheKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  const k = key.replace(/^\//, '');
+  return k.includes('/.thumbnails/') || k === '.thumbnails' || k.startsWith('.thumbnails/');
+}
+
 export async function createFolder(prefix) {
   const key = joinKey(prefix).replace(/\/?$/, '/')
   // S3-style folders are zero-byte objects ending with '/'

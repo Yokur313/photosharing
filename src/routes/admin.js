@@ -1,11 +1,22 @@
 import express from 'express';
-import { listPrefix, putObject, deleteObject, copyObject, joinKey, signGetUrl, createFolder, deleteFolderRecursive } from '../s3.js';
-import { listSharesAsync, createShareAsync, deleteShareAsync } from '../shareStore.js';
+import {
+  listPrefix,
+  putObject,
+  deleteObject,
+  copyObject,
+  joinKey,
+  signGetUrl,
+  createFolder,
+  deleteFolderRecursive,
+  isThumbnailCacheKey,
+} from '../s3.js';
+import { listSharesAsync, createShareAsync, deleteShareAsync, getLatestShareForFolderPrefix } from '../shareStore.js';
 import { requireAdmin } from '../middleware/auth.js';
 
 function isAppMetadataKey(k) {
   const normalized = (k || '').replace(/^\//, '');
-  return normalized === '__app_metadata__' || normalized.startsWith('__app_metadata__/');
+  if (normalized === '__app_metadata__' || normalized.startsWith('__app_metadata__/')) return true;
+  return isThumbnailCacheKey(k);
 }
 
 function formatSize(bytes) {
@@ -61,7 +72,8 @@ export function createAdminRouter(upload) {
         walk = walk ? `${walk}/${p}` : p;
         crumbs.push({ name: p, prefix: `${walk}/` });
       }
-      res.render('admin/index', { prefix, entries, crumbs });
+      const latestShare = await getLatestShareForFolderPrefix(prefix);
+      res.render('admin/index', { prefix, entries, crumbs, latestShare });
     } catch (e) {
       console.error('Error listing objects', e);
       res.status(500).send('Error listing objects');
