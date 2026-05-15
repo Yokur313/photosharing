@@ -27,8 +27,11 @@ export function createPublicShareRouter(upload) {
     if (!key || !key.startsWith(share.folderKey.replace(/\/?$/, '/'))) {
       return res.status(400).send('Invalid key');
     }
-    const width = Math.max(32, Math.min(1024, parseInt(req.query.w, 10) || 256));
-    const height = Math.max(32, Math.min(1024, parseInt(req.query.h, 10) || width));
+    const fitRaw = (req.query.fit || 'cover').toString().toLowerCase();
+    const fitMode = fitRaw === 'inside' ? 'inside' : 'cover';
+    const width = Math.max(32, Math.min(2048, parseInt(req.query.w, 10) || 256));
+    const height = Math.max(32, Math.min(4096, parseInt(req.query.h, 10) || width));
+    const maxH = Math.max(64, Math.min(4096, parseInt(req.query.maxh, 10) || 3200));
     try {
       const { bucket } = getEnvConfig();
       const s3Client = getS3();
@@ -39,10 +42,18 @@ export function createPublicShareRouter(upload) {
       const data = await s3Client.send(cmd);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.setHeader('Content-Type', 'image/jpeg');
-      const transformer = sharp()
-        .rotate()
-        .resize({ width, height, fit: 'cover' })
-        .jpeg({ quality: 70, mozjpeg: true });
+      const sharpInst = sharp().rotate();
+      if (fitMode === 'inside') {
+        sharpInst.resize({
+          width,
+          height: maxH,
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
+      } else {
+        sharpInst.resize({ width, height, fit: 'cover' });
+      }
+      const transformer = sharpInst.jpeg({ quality: 70, mozjpeg: true });
       data.Body.pipe(transformer).pipe(res);
     } catch {
       return res.status(500).send('Failed to create thumbnail');

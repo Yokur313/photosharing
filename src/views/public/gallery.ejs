@@ -13,7 +13,7 @@
     </div>
   </div>
   <p class="muted" id="gallery-status">Loading photos…</p>
-  <div id="photo-grid" class="grid"></div>
+  <div id="photo-grid" class="share-photo-masonry"></div>
   <div id="gallery-sentinel" class="muted" style="text-align:center;padding:16px;min-height:24px"></div>
 
   <% if (share.editable) { %>
@@ -63,7 +63,7 @@
   if (dlAll) dlAll.addEventListener('click', function(){ location.href = '/s/' + encodeURIComponent(shareId) + '/download.zip'; });
 
   function thumbUrl(key) {
-    return '/s/' + encodeURIComponent(shareId) + '/thumb?key=' + encodeURIComponent(key) + '&w=256&h=256';
+    return '/s/' + encodeURIComponent(shareId) + '/thumb?key=' + encodeURIComponent(key) + '&w=480&fit=inside&maxh=3200';
   }
 
   function appendTile(item) {
@@ -87,8 +87,6 @@
     img.alt = item.name || '';
     img.loading = 'lazy';
     img.decoding = 'async';
-    img.width = 256;
-    img.height = 256;
     img.src = thumbUrl(item.key);
     thumb.appendChild(img);
     a.appendChild(thumb);

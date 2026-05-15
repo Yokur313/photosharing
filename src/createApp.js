@@ -26,6 +26,14 @@ export function createApp() {
     res.type('html');
     res.sendFile('index.html', { root: viewerDir, maxAge: 0 });
   });
+  app.get('/viewer/share.html', (req, res) => {
+    const id = (req.query.id || '').toString().trim();
+    if (!id) {
+      res.redirect(302, '/viewer/');
+      return;
+    }
+    res.redirect(302, `/s/${encodeURIComponent(id)}`);
+  });
   app.use(
     '/viewer',
     express.static(viewerDir, {

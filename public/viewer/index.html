@@ -33,7 +33,7 @@
       e.preventDefault();
       const v = document.getElementById('share-input').value.trim();
       const id = (v.match(/\/s\/([^/?#]+)/) || [null, v])[1];
-      if (id) window.location.href = `./share.html?id=${encodeURIComponent(id)}`;
+      if (id) window.location.href = '/s/' + encodeURIComponent(id);
     });
   </script>
 </body>
