@@ -1,0 +1,178 @@
+import express from 'express';
+import { listPrefix, putObject, deleteObject, copyObject, joinKey, signGetUrl, createFolder, deleteFolderRecursive } from '../s3.js';
+import { listSharesAsync, createShareAsync, deleteShareAsync } from '../shareStore.js';
+import { requireAdmin } from '../middleware/auth.js';
+
+function isAppMetadataKey(k) {
+  const normalized = (k || '').replace(/^\//, '');
+  return normalized === '__app_metadata__' || normalized.startsWith('__app_metadata__/');
+}
+
+function formatSize(bytes) {
+  if (bytes < 100 * 1024) {
+    const kb = Math.max(1, Math.round(bytes / 1024));
+    return `${kb} KB`;
+  }
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(1)} MB`;
+}
+
+export function createAdminRouter(upload) {
+  const router = express.Router();
+
+  router.get('/', requireAdmin, async (req, res) => {
+    const prefix = (req.query.prefix || '').toString();
+    try {
+      const { folders, files } = await listPrefix(prefix);
+      const folderEntries = (folders || [])
+        .filter((f) => !isAppMetadataKey(f))
+        .map((f) => ({
+          type: 'folder',
+          key: f,
+          name: f.replace(prefix, '').replace(/\/$/, ''),
+          size: null,
+          lastModified: null,
+        }));
+      const fileEntriesRaw = (files || [])
+        .filter((o) => !isAppMetadataKey(o.key))
+        .map((o) => ({
+          type: 'file',
+          key: o.key,
+          name: o.key.replace(prefix, ''),
+          size: o.size,
+          sizeDisplay: formatSize(o.size || 0),
+          lastModified: o.lastModified,
+        }));
+      const fileEntries = [];
+      for (const fe of fileEntriesRaw) {
+        try {
+          const url = await signGetUrl(fe.key, 3600);
+          fileEntries.push({ ...fe, url });
+        } catch {
+          fileEntries.push({ ...fe, url: null });
+        }
+      }
+      const entries = [...folderEntries, ...fileEntries];
+      const crumbs = [];
+      const parts = (prefix || '').replace(/\/$/, '').split('/').filter(Boolean);
+      let walk = '';
+      crumbs.push({ name: 'Root', prefix: '' });
+      for (const p of parts) {
+        walk = walk ? `${walk}/${p}` : p;
+        crumbs.push({ name: p, prefix: `${walk}/` });
+      }
+      res.render('admin/index', { prefix, entries, crumbs });
+    } catch (e) {
+      console.error('Error listing objects', e);
+      res.status(500).send('Error listing objects');
+    }
+  });
+
+  router.post('/upload', requireAdmin, upload.array('photos'), async (req, res) => {
+    const prefix = (req.body.prefix || '').toString();
+    try {
+      for (const file of req.files || []) {
+        const key = joinKey(prefix, file.originalname);
+        await putObject(key, file.buffer, file.mimetype);
+      }
+      res.redirect(`/admin?prefix=${encodeURIComponent(prefix)}`);
+    } catch {
+      res.status(500).send('Upload failed');
+    }
+  });
+
+  router.post('/delete', requireAdmin, async (req, res) => {
+    const { key } = req.body;
+    if (isAppMetadataKey(key)) {
+      return res.status(403).send('Cannot delete application metadata from this UI');
+    }
+    try {
+      await deleteObject(key);
+      const parent = key.includes('/') ? key.slice(0, key.lastIndexOf('/')) : '';
+      res.redirect(`/admin?prefix=${encodeURIComponent(parent)}`);
+    } catch {
+      res.status(500).send('Delete failed');
+    }
+  });
+
+  router.post('/move', requireAdmin, async (req, res) => {
+    const { fromKey, toFolder } = req.body;
+    if (isAppMetadataKey(fromKey) || isAppMetadataKey(toFolder)) {
+      return res.status(403).send('Cannot move into or out of application metadata');
+    }
+    try {
+      const fileName = fromKey.split('/').pop();
+      const toKey = joinKey(toFolder, fileName);
+      await copyObject(fromKey, toKey);
+      await deleteObject(fromKey);
+      res.redirect(`/admin?prefix=${encodeURIComponent(toFolder)}`);
+    } catch {
+      res.status(500).send('Move failed');
+    }
+  });
+
+  router.post('/folder/create', requireAdmin, async (req, res) => {
+    const { prefix, name } = req.body;
+    try {
+      await createFolder(joinKey(prefix || '', name));
+      res.redirect(`/admin?prefix=${encodeURIComponent(prefix || '')}`);
+    } catch {
+      res.status(500).send('Folder create failed');
+    }
+  });
+
+  router.post('/folder/delete', requireAdmin, async (req, res) => {
+    const { prefix: folderPrefix } = req.body;
+    if (isAppMetadataKey(folderPrefix)) {
+      return res.status(403).send('Cannot delete application metadata tree');
+    }
+    try {
+      const parent = (folderPrefix || '').split('/').slice(0, -2).join('/');
+      await deleteFolderRecursive(folderPrefix);
+      res.redirect(`/admin?prefix=${encodeURIComponent(parent)}`);
+    } catch {
+      res.status(500).send('Folder delete failed');
+    }
+  });
+
+  router.post('/share/create', requireAdmin, async (req, res) => {
+    const { folderKey, password, editable } = req.body;
+    if (!folderKey) return res.status(400).json({ error: 'folderKey required' });
+    try {
+      const share = await createShareAsync({ folderKey, password, editable: !!editable });
+      return res.json({ id: share.id, url: `/s/${share.id}` });
+    } catch {
+      return res.status(500).json({ error: 'Failed to create share' });
+    }
+  });
+
+  router.get('/sign', requireAdmin, async (req, res) => {
+    const key = (req.query.key || '').toString();
+    if (!key) return res.status(400).json({ error: 'key required' });
+    if (isAppMetadataKey(key)) return res.status(403).json({ error: 'forbidden' });
+    try {
+      const url = await signGetUrl(key, 3600);
+      return res.json({ url });
+    } catch {
+      return res.status(500).json({ error: 'Failed to sign' });
+    }
+  });
+
+  router.get('/shares', requireAdmin, async (req, res) => {
+    res.render('admin/shares', { shares: await listSharesAsync() });
+  });
+
+  router.post('/shares', requireAdmin, async (req, res) => {
+    const { folderKey, password } = req.body;
+    await createShareAsync({ folderKey, password });
+    res.redirect('/admin/shares');
+  });
+
+  router.post('/shares/delete', requireAdmin, async (req, res) => {
+    const { id } = req.body;
+    await deleteShareAsync(id);
+    res.redirect('/admin/shares');
+  });
+
+  return router;
+}

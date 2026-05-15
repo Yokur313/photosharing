@@ -42,7 +42,7 @@
     if (!shareId) location.replace('./index.html');
 
     async function fetchShare() {
-      const r = await fetch(`${window.API_BASE}/api/share/${encodeURIComponent(shareId)}`);
+      const r = await fetch(window.apiUrl(`/api/share/${encodeURIComponent(shareId)}`));
       if (!r.ok) throw new Error('Failed to load share');
       return r.json(); // { id, folderKey, items:[{name,size,url}] , editable:boolean }
     }
@@ -84,7 +84,7 @@
         const a = document.createElement('a');
         a.className = 'tile'; a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
         const t = document.createElement('div'); t.className = 'thumb';
-        const thumbUrl = `${window.API_BASE}/s/${encodeURIComponent(shareId)}/thumb?key=${encodeURIComponent(it.key || it.name)}&w=256&h=256`;
+        const thumbUrl = window.apiUrl(`/s/${encodeURIComponent(shareId)}/thumb?key=${encodeURIComponent(it.key || it.name)}&w=256&h=256`);
         const img = document.createElement('img'); img.alt = it.name; img.loading = 'lazy';
         if (io) { img.setAttribute('data-src', thumbUrl); } else { img.src = thumbUrl; }
         t.appendChild(img); a.appendChild(t);
@@ -98,7 +98,7 @@
       try {
         const data = await fetchShare();
         byId('folder-label').textContent = data.folderKey || '/';
-        byId('zip-link').href = `${window.API_BASE}/s/${encodeURIComponent(shareId)}/download.zip`;
+        byId('zip-link').href = window.apiUrl(`/s/${encodeURIComponent(shareId)}/download.zip`);
         renderItems(data.items || []);
       } catch (e) {
         byId('grid').innerHTML = '<div class="muted">Failed to load shared folder.</div>';
