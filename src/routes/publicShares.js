@@ -2,7 +2,6 @@ import express from 'express';
 import archiver from 'archiver';
 import multer from 'multer';
 import sharp from 'sharp';
-import { createHash } from 'crypto';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import {
   putObject,
@@ -14,17 +13,9 @@ import {
   isThumbnailCacheKey,
 } from '../s3.js';
 import { getShareByIdAsync, verifySharePassword } from '../shareStore.js';
+import { thumbCacheObjectKey } from '../thumbCacheKey.js';
 
 const parseNone = multer().none();
-
-function thumbCacheObjectKey(folderKey, sourceKey, width, maxH, fitMode) {
-  const base = folderKey.replace(/^\//, '').replace(/\/?$/, '/');
-  const h = createHash('sha256')
-    .update(`${sourceKey}|${width}|${maxH}|${fitMode}`)
-    .digest('hex')
-    .slice(0, 48);
-  return joinKey(base, '.thumbnails', `${h}.jpg`);
-}
 
 export function createPublicShareRouter(upload) {
   const router = express.Router();
@@ -50,7 +41,9 @@ export function createPublicShareRouter(upload) {
     const bucketName = getEnvConfig().bucket || process.env.PROD_S3_BUCKET || process.env.S3_BUCKET;
     const cacheDisabled =
       process.env.DISABLE_THUMB_CACHE === '1' || String(process.env.DISABLE_THUMB_CACHE || '').toLowerCase() === 'true';
-    const cacheKey = cacheDisabled ? null : thumbCacheObjectKey(share.folderKey, key, width, maxH, fitMode);
+    const cacheKey = cacheDisabled
+      ? null
+      : thumbCacheObjectKey(share.folderKey, key, width, maxH, fitMode);
 
     try {
       const s3Client = getS3();

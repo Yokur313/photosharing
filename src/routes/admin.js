@@ -12,6 +12,41 @@ import {
 } from '../s3.js';
 import { listSharesAsync, createShareAsync, deleteShareAsync, getLatestShareForFolderPrefix } from '../shareStore.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { SHARE_GALLERY_THUMB_CACHE, thumbCacheObjectKey } from '../thumbCacheKey.js';
+
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?)$/i;
+
+function isImageFileName(name) {
+  return IMAGE_EXT.test(name || '');
+}
+
+function normalizeShareFolderPrefix(fk) {
+  let s = (fk || '').replace(/^\//, '');
+  if (!s) return '';
+  return s.endsWith('/') ? s : `${s}/`;
+}
+
+/** Longest share folder prefix that contains this object key (share thumbnails live under that root). */
+function longestShareRootForObjectKey(objectKey, shares) {
+  const k = objectKey.replace(/^\//, '');
+  let best = null;
+  let bestLen = 0;
+  for (const s of shares) {
+    const fk = normalizeShareFolderPrefix(s.folderKey);
+    if (!fk) continue;
+    const matches = k === fk.slice(0, -1) || k.startsWith(fk);
+    if (matches && fk.length > bestLen) {
+      best = fk;
+      bestLen = fk.length;
+    }
+  }
+  return best;
+}
+
+function thumbListPrefixForShareRoot(shareRoot) {
+  const base = shareRoot.replace(/^\//, '').replace(/\/?$/, '');
+  return `${joinKey(base, '.thumbnails')}/`;
+}
 
 function isAppMetadataKey(k) {
   const normalized = (k || '').replace(/^\//, '');
@@ -54,13 +89,46 @@ export function createAdminRouter(upload) {
           sizeDisplay: formatSize(o.size || 0),
           lastModified: o.lastModified,
         }));
+      const shares = await listSharesAsync();
+      const shareRootByKey = new Map();
+      for (const fe of fileEntriesRaw) {
+        if (!isImageFileName(fe.name)) continue;
+        const root = longestShareRootForObjectKey(fe.key, shares);
+        if (root) shareRootByKey.set(fe.key, root);
+      }
+      const rootsNeeded = new Set(shareRootByKey.values());
+      const cachedThumbKeys = new Set();
+      for (const root of rootsNeeded) {
+        try {
+          const { files: tf } = await listPrefix(thumbListPrefixForShareRoot(root));
+          (tf || []).forEach((f) => cachedThumbKeys.add(f.key));
+        } catch {
+          /* ignore */
+        }
+      }
+      const { width: tw, maxH: tmh, fitMode: tfit } = SHARE_GALLERY_THUMB_CACHE;
       const fileEntries = [];
       for (const fe of fileEntriesRaw) {
+        let thumbPreviewUrl = null;
+        let thumbPending = false;
+        const shareRoot = shareRootByKey.get(fe.key);
+        if (shareRoot) {
+          const ck = thumbCacheObjectKey(shareRoot, fe.key, tw, tmh, tfit);
+          if (cachedThumbKeys.has(ck)) {
+            try {
+              thumbPreviewUrl = await signGetUrl(ck, 3600);
+            } catch {
+              thumbPreviewUrl = null;
+            }
+          } else {
+            thumbPending = true;
+          }
+        }
         try {
           const url = await signGetUrl(fe.key, 3600);
-          fileEntries.push({ ...fe, url });
+          fileEntries.push({ ...fe, url, thumbPreviewUrl, thumbPending });
         } catch {
-          fileEntries.push({ ...fe, url: null });
+          fileEntries.push({ ...fe, url: null, thumbPreviewUrl, thumbPending });
         }
       }
       const entries = [...folderEntries, ...fileEntries];
@@ -72,7 +140,7 @@ export function createAdminRouter(upload) {
         walk = walk ? `${walk}/${p}` : p;
         crumbs.push({ name: p, prefix: `${walk}/` });
       }
-      const latestShare = await getLatestShareForFolderPrefix(prefix);
+      const latestShare = await getLatestShareForFolderPrefix(prefix, shares);
       res.render('admin/index', { prefix, entries, crumbs, latestShare });
     } catch (e) {
       console.error('Error listing objects', e);

@@ -251,10 +251,10 @@ function normalizeShareFolder(fk) {
 }
 
 /** Most recently created share whose folder matches this prefix (exact folder, not subtree). */
-export async function getLatestShareForFolderPrefix(prefix) {
+export async function getLatestShareForFolderPrefix(prefix, sharesList = null) {
   const target = normalizeShareFolder(prefix);
   if (!target) return null;
-  const shares = await listSharesAsync();
+  const shares = sharesList || (await listSharesAsync());
   const matches = shares.filter((s) => normalizeShareFolder(s.folderKey) === target);
   matches.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   return matches[0] || null;

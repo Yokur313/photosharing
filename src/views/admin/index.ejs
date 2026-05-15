@@ -40,6 +40,7 @@
   <div id="od-dropzone" class="od-dropzone">
     <div class="od-list">
       <div class="od-list-head">
+        <div class="od-col od-thumb-col">Thumb</div>
         <div class="od-col name">Name</div>
         <div class="od-col size">Size</div>
         <div class="od-col actions">Actions</div>
@@ -48,6 +49,7 @@
         <% entries.forEach(e => { %>
           <% if (e.type === 'folder') { %>
             <div class="od-row folder">
+              <div class="od-col od-thumb-col" aria-hidden="true"></div>
               <div class="od-col name">
                 <a href="/admin?prefix=<%= encodeURIComponent(e.key) %>">📁 <%= e.name %></a>
               </div>
@@ -62,6 +64,13 @@
             </div>
           <% } else { %>
             <div class="od-row file" draggable="true" data-key="<%= e.key %>">
+              <div class="od-col od-thumb-col">
+                <% if (e.thumbPreviewUrl) { %>
+                  <img class="od-row-thumb" src="<%= e.thumbPreviewUrl %>" alt="" loading="lazy" decoding="async" />
+                <% } else if (e.thumbPending) { %>
+                  <span class="od-thumb-pending muted" title="No cached share thumbnail yet — open the public gallery once to generate">—</span>
+                <% } %>
+              </div>
               <div class="od-col name"><button type="button" class="link od-preview" data-url="<%= e.url %>"><%= e.name %></button></div>
               <div class="od-col size"><%= e.sizeDisplay || e.size %></div>
               <div class="od-col actions od-actions-row">
