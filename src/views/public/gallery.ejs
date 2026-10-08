@@ -13,7 +13,7 @@
     </div>
   </div>
   <p class="muted" id="gallery-status">Loading photos…</p>
-  <div id="photo-grid" class="share-photo-masonry"></div>
+  <div id="photo-grid"></div>
   <div id="gallery-sentinel" class="muted" style="text-align:center;padding:16px;min-height:24px"></div>
 
   <% if (share.editable) { %>
@@ -48,7 +48,9 @@
 </div>
 
 <script src="/public/upload-progress.js"></script>
-<script>
+<script type="module">
+import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layout.js';
+
 (function(){
   var shareId = <%- JSON.stringify(share.id) %>;
   var pageSize = 36;
@@ -62,6 +64,12 @@
   var dlAll = document.getElementById('download-all');
   if (dlAll) dlAll.addEventListener('click', function(){ location.href = '/s/' + encodeURIComponent(shareId) + '/download.zip'; });
 
+  var GAP = 8;
+  var entries = [];
+  var ratios = [];
+  var committed = 0;
+  var layoutWidth = 0;
+
   var MAX_THUMB_INFLIGHT = 5;
   var thumbInflight = 0;
   var thumbWait = [];
@@ -69,7 +77,7 @@
     while (thumbInflight < MAX_THUMB_INFLIGHT && thumbWait.length) {
       var job = thumbWait.shift();
       thumbInflight++;
-      job(function done() {
+      job(function release() {
         thumbInflight--;
         pumpThumbs();
       });
@@ -84,79 +92,126 @@
     return '/s/' + encodeURIComponent(shareId) + '/thumb?key=' + encodeURIComponent(key) + '&w=480&fit=inside&maxh=3200';
   }
 
-  function startThumbLoad(img, thumb, url, done) {
-    img.onload = function() {
-      thumb.classList.remove('thumb-loading');
-      thumb.classList.add('thumb-loaded');
-      done();
-    };
-    img.onerror = function() {
-      thumb.classList.remove('thumb-loading');
-      img.classList.add('thumb-load-failed');
-      done();
-    };
-    img.src = url;
+  function ratioOf(img) {
+    return img.naturalWidth > 0 && img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : DEFAULT_RATIO;
   }
 
-  function observeThumbLoad(img, thumb, url) {
-    if (!('IntersectionObserver' in window)) {
-      queueThumbJob(function (done) { startThumbLoad(img, thumb, url, done); });
-      return;
+  function markLoaded(entry) {
+    entry.thumb.classList.remove('thumb-loading');
+    entry.thumb.classList.add('thumb-loaded');
+  }
+  function markFailed(entry) {
+    entry.thumb.classList.remove('thumb-loading');
+    entry.img.classList.add('thumb-load-failed');
+  }
+
+  // The thumbnail's own dimensions give the photo's aspect ratio; the tile is only placed once it is known.
+  function loadThumb(entry, url) {
+    queueThumbJob(function (release) {
+      var settled = false;
+      var timer = setTimeout(function () { settle(DEFAULT_RATIO); }, 30000);
+      function settle(ratio) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        ratios[entry.index] = ratio;
+        release();
+        commitReady();
+      }
+      entry.img.onload = function () { markLoaded(entry); settle(ratioOf(entry.img)); };
+      entry.img.onerror = function () { markFailed(entry); settle(DEFAULT_RATIO); };
+      entry.img.src = url;
+    });
+  }
+
+  function retryThumb(entry, key) {
+    if (!entry.img.classList.contains('thumb-load-failed')) return;
+    entry.img.classList.remove('thumb-load-failed');
+    entry.thumb.classList.remove('thumb-loaded');
+    entry.thumb.classList.add('thumb-loading');
+    queueThumbJob(function (release) {
+      entry.img.onload = function () { markLoaded(entry); release(); };
+      entry.img.onerror = function () { markFailed(entry); release(); };
+      entry.img.src = thumbUrl(key) + '&ts=' + Date.now();
+    });
+  }
+
+  function appendRow(start, plan, targetH) {
+    var row = document.createElement('div');
+    row.className = 'jrow';
+    for (var i = start; i < start + plan.n; i++) {
+      var el = entries[i].el;
+      var r = ratios[i];
+      el.style.aspectRatio = String(r);
+      if (plan.stretch) {
+        el.style.flex = Math.round(r * 1000) + ' 1 0px';
+        el.style.width = '';
+      } else {
+        el.style.flex = '0 0 auto';
+        el.style.width = Math.round(r * targetH) + 'px';
+      }
+      row.appendChild(el);
     }
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        io.disconnect();
-        queueThumbJob(function (done) { startThumbLoad(img, thumb, url, done); });
-      });
-    }, { root: null, rootMargin: '200px', threshold: 0.01 });
-    io.observe(thumb);
+    grid.appendChild(row);
   }
 
-  function appendTile(item) {
+  function commitReady() {
+    var width = grid.clientWidth;
+    if (!width) return;
+    if (!layoutWidth) layoutWidth = width;
+    var targetH = targetRowHeight(width);
+    var plan;
+    while ((plan = planRow(ratios, committed, width, targetH, GAP, done))) {
+      appendRow(committed, plan, targetH);
+      committed += plan.n;
+    }
+    updateStatus();
+    maybeLoadMore();
+  }
+
+  function relayout() {
+    var width = grid.clientWidth;
+    if (!width || Math.abs(width - layoutWidth) < 48) return;
+    layoutWidth = width;
+    grid.textContent = '';
+    committed = 0;
+    commitReady();
+  }
+
+  function createTile(item) {
     var label = document.createElement('label');
     label.className = 'tile';
-    label.style.position = 'relative';
-    label.style.cursor = 'pointer';
     if (item.name) label.setAttribute('aria-label', item.name);
     var cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'sel';
     cb.value = item.key;
-    cb.style.cssText = 'z-index:2';
     var a = document.createElement('a');
     a.href = item.url;
     a.target = '_blank';
     a.rel = 'noopener';
-    a.style.cssText = 'text-decoration:none;color:inherit';
     var thumb = document.createElement('div');
     thumb.className = 'thumb thumb-loading';
     var img = document.createElement('img');
     img.alt = '';
     img.decoding = 'async';
-    observeThumbLoad(img, thumb, thumbUrl(item.key));
     thumb.appendChild(img);
     a.appendChild(thumb);
     a.addEventListener('click', function(ev){ ev.preventDefault(); openPreview(item.url); });
     label.appendChild(cb);
     label.appendChild(a);
-    grid.appendChild(label);
 
-    var retried = false;
-    function retryOnce() {
-      if (retried || !img.classList.contains('thumb-load-failed')) return;
-      retried = true;
-      img.classList.remove('thumb-load-failed');
-      thumb.classList.remove('thumb-loaded');
-      thumb.classList.add('thumb-loading');
-      queueThumbJob(function (done) {
-        startThumbLoad(img, thumb, thumbUrl(item.key) + '&ts=' + Date.now(), done);
-      });
-    }
-    label.addEventListener('pointerenter', retryOnce, { passive: true });
-    label.addEventListener('touchstart', retryOnce, { passive: true });
+    var entry = { index: entries.length, el: label, thumb: thumb, img: img };
+    entries.push(entry);
+    ratios.push(null);
+
+    var retry = function () { retryThumb(entry, item.key); };
+    label.addEventListener('pointerenter', retry, { passive: true });
+    label.addEventListener('touchstart', retry, { passive: true });
     label.setAttribute('tabindex', '0');
-    label.addEventListener('focusin', retryOnce);
+    label.addEventListener('focusin', retry);
+
+    loadThumb(entry, thumbUrl(item.key));
   }
 
   function openPreview(url) {
@@ -219,10 +274,35 @@
     if (statusEl) statusEl.textContent = text;
   }
 
+  function updateStatus() {
+    if (done && !total) {
+      setStatus('No photos in this folder.');
+    } else if (done && committed >= entries.length) {
+      setStatus('Showing all ' + total + ' photo' + (total === 1 ? '' : 's'));
+    } else if (done || !total) {
+      setStatus('Loading photos…');
+    } else {
+      setStatus('Showing ' + committed + ' of ' + total + ' — scroll for more');
+    }
+    if (sentinel) sentinel.textContent = done ? '' : 'Scroll down to load more';
+  }
+
+  var checkQueued = false;
+  function maybeLoadMore() {
+    if (checkQueued) return;
+    checkQueued = true;
+    requestAnimationFrame(function () {
+      checkQueued = false;
+      if (done || loading || !sentinel) return;
+      if (entries.length - committed > pageSize / 2) return;
+      if (sentinel.getBoundingClientRect().top < window.innerHeight + 600) loadNext();
+    });
+  }
+
   function loadNext() {
     if (loading || done) return;
     loading = true;
-    setStatus(total ? ('Showing ' + grid.children.length + ' of ' + total + '…') : 'Loading…');
+    setStatus(total ? ('Showing ' + committed + ' of ' + total + '…') : 'Loading…');
     fetch('/api/share/' + encodeURIComponent(shareId) + '/items?offset=' + offset + '&limit=' + pageSize, { credentials: 'same-origin' })
       .then(function(r){
         if (r.status === 403) { setStatus('Session expired — refresh the page.'); done = true; return null; }
@@ -232,36 +312,23 @@
       .then(function(data){
         if (!data) return;
         total = data.total;
-        (data.items || []).forEach(appendTile);
+        (data.items || []).forEach(createTile);
         offset += (data.items || []).length;
         done = !data.hasMore || offset >= total;
-        if (done) {
-          setStatus(total ? ('Showing all ' + total + ' photo' + (total === 1 ? '' : 's')) : 'No photos in this folder.');
-          if (sentinel) sentinel.textContent = '';
-        } else {
-          setStatus('Showing ' + offset + ' of ' + total + ' — scroll for more');
-          if (sentinel) sentinel.textContent = 'Scroll down to load more';
-        }
+        updateStatus();
+        commitReady();
         updateSelectionUi();
       })
       .catch(function(){ setStatus('Could not load photos.'); done = true; })
       .finally(function(){ loading = false; });
   }
 
-  if ('IntersectionObserver' in window && sentinel) {
-    var io = new IntersectionObserver(function(entries){
-      entries.forEach(function(en){
-        if (en.isIntersecting && !done && !loading) loadNext();
-      });
-    }, { rootMargin: '400px' });
-    io.observe(sentinel);
-  } else if (sentinel) {
-    window.addEventListener('scroll', function(){
-      if (done || loading) return;
-      var r = sentinel.getBoundingClientRect();
-      if (r.top < window.innerHeight + 500) loadNext();
-    }, { passive: true });
-  }
+  window.addEventListener('scroll', maybeLoadMore, { passive: true });
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { relayout(); maybeLoadMore(); }, 150);
+  });
   loadNext();
 
   var upForm = document.getElementById('share-upload-form');
