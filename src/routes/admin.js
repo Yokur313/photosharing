@@ -12,6 +12,7 @@ import {
 } from '../s3.js';
 import { listSharesAsync, createShareAsync, deleteShareAsync, getLatestShareForFolderPrefix } from '../shareStore.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { warmShareCard } from '../lib/shareCard.js';
 import { SHARE_GALLERY_THUMB_CACHE, thumbCacheObjectKey } from '../thumbCacheKey.js';
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?)$/i;
@@ -220,6 +221,7 @@ export function createAdminRouter(upload) {
     if (!folderKey) return res.status(400).json({ error: 'folderKey required' });
     try {
       const share = await createShareAsync({ folderKey, password, editable: !!editable });
+      warmShareCard(share).catch(() => {});
       return res.json({ id: share.id, url: `/s/${share.id}` });
     } catch {
       return res.status(500).json({ error: 'Failed to create share' });
@@ -245,7 +247,8 @@ export function createAdminRouter(upload) {
   router.post('/shares', requireAdmin, async (req, res) => {
     const { folderKey, password, editable } = req.body;
     const allowUpload = editable === '1' || editable === 'on' || editable === true;
-    await createShareAsync({ folderKey, password, editable: allowUpload });
+    const share = await createShareAsync({ folderKey, password, editable: allowUpload });
+    warmShareCard(share).catch(() => {});
     res.redirect('/admin/shares');
   });
 

@@ -33,7 +33,8 @@
   <% if (typeof latestShare !== 'undefined' && latestShare && latestShare.id && prefix) { %>
     <div class="muted" style="padding:0 0 14px 2px;font-size:14px;line-height:1.45">
       Latest share link for this folder:
-      <a href="/s/<%= latestShare.id %>" target="_blank" rel="noopener">/s/<%= latestShare.id %></a>
+      <a href="<%= shortPath(latestShare.id) %>" target="_blank" rel="noopener"><%= shortPath(latestShare.id) %></a>
+      <button type="button" class="secondary" data-path="<%= shortPath(latestShare.id) %>" onclick="navigator.clipboard.writeText(location.origin + this.dataset.path).then(() => { this.textContent = 'Copied'; })">Copy short link</button>
     </div>
   <% } %>
 

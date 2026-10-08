@@ -20,7 +20,7 @@
           <td class="muted"><%= s.folderKey %></td>
           <td><%= s.passwordHash ? 'yes' : 'no' %></td>
           <td><%= s.editable ? 'yes' : 'no' %></td>
-          <td><a href="/s/<%= s.id %>" target="_blank">/s/<%= s.id %></a></td>
+          <td><a href="<%= shortPath(s.id) %>" target="_blank"><%= shortPath(s.id) %></a> <button type="button" class="secondary" data-path="<%= shortPath(s.id) %>" onclick="navigator.clipboard.writeText(location.origin + this.dataset.path).then(() => { this.textContent = 'Copied'; })">Copy short link</button></td>
           <td>
             <form method="post" action="/admin/shares/delete" style="display:inline">
               <input type="hidden" name="id" value="<%= s.id %>" />

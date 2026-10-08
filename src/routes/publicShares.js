@@ -14,8 +14,21 @@ import {
 } from '../s3.js';
 import { getShareByIdAsync, verifySharePassword } from '../shareStore.js';
 import { thumbCacheObjectKey } from '../thumbCacheKey.js';
+import { buildShareCard } from '../lib/shareCard.js';
 
 const parseNone = multer().none();
+
+export async function renderShareGallery(req, res, share) {
+  const card = await buildShareCard(req, share);
+  if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
+    return res.render('public/enter-password', { id: share.id, error: null, card, title: card.title });
+  }
+  try {
+    res.render('public/gallery', { share, folders: [], items: [], card, title: card.title });
+  } catch {
+    res.status(500).send('Error loading shared folder');
+  }
+}
 
 export function createPublicShareRouter(upload) {
   const router = express.Router();
@@ -213,14 +226,7 @@ export function createPublicShareRouter(upload) {
   router.get('/:id', async (req, res) => {
     const share = await getShareByIdAsync(req.params.id);
     if (!share) return res.status(404).send('Share not found');
-    if (share.passwordHash && !req.session[`share:${share.id}:ok`]) {
-      return res.render('public/enter-password', { id: share.id, error: null });
-    }
-    try {
-      res.render('public/gallery', { share, folders: [], items: [] });
-    } catch {
-      res.status(500).send('Error loading shared folder');
-    }
+    return renderShareGallery(req, res, share);
   });
 
   router.post('/:id', async (req, res) => {

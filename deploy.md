@@ -30,6 +30,16 @@ Same-origin use (including the built-in viewer at `/viewer/`) does not need CORS
 CORS_ORIGINS=https://your-container-url.functions.fnc.fr-par.scw.cloud,http://localhost:3000
 ```
 
+## Link previews (optional)
+
+Share pages include Open Graph tags so WhatsApp, Messenger, iMessage, etc. show a card (folder name, short description, cover photo). Absolute URLs in those tags are built from the request host. If your proxy doesn't forward the original host/protocol, pin the public address:
+
+```
+PUBLIC_BASE_URL=https://photos.example.com
+```
+
+Every share is also reachable at a short alias, `/<22-char code>` (shown in Admin → Shares with a "Copy short link" button). Existing `/s/<id>` links keep working.
+
 ## Persistent volume (optional)
 
 If you **do not** use `SHARES_S3_BUCKET`, share metadata is stored under `/app/data/shares/` (one JSON file per share). Mount a persistent volume on `/app/data` so shares survive redeploys.
