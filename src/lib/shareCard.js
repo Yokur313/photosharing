@@ -1,4 +1,4 @@
-import { listPrefix, isThumbnailCacheKey } from '../s3.js';
+import { listPrefixCached, isThumbnailCacheKey } from '../s3.js';
 
 const SITE_NAME = 'Arthur Stainmesse · Photos';
 const IMAGE_RE = /\.(jpe?g|png|webp|gif|avif|tiff?)$/i;
@@ -24,7 +24,7 @@ async function findCoverKey(share) {
   const hit = coverCache.get(share.id);
   if (hit && Date.now() - hit.at < COVER_TTL_MS) return { key: hit.key, fresh: false };
   try {
-    const { files } = await listPrefix(share.folderKey);
+    const { files } = await listPrefixCached(share.folderKey);
     const cover = files.find((f) => !isThumbnailCacheKey(f.key) && IMAGE_RE.test(f.key));
     const key = cover ? cover.key : null;
     coverCache.set(share.id, { key, at: Date.now() });

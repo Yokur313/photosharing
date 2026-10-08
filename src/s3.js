@@ -1,5 +1,6 @@
 import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createTtlCache } from './lib/ttlCache.js';
 
 function normalizeEndpoint(ep, b) {
   if (!ep || !b) return ep;
@@ -62,12 +63,35 @@ export async function listPrefix(prefix = '') {
   return { folders, files };
 }
 
+// Short-lived cache of folder listings for the public gallery (the S3 LIST is the slow part of every page).
+// Any write through the helpers below clears it, except server-managed thumbnail cache objects, which never
+// appear in a folder's direct listing. Other instances may serve a stale listing for up to LISTING_TTL_MS.
+const LISTING_TTL_MS = 30 * 1000;
+const listingCache = createTtlCache(LISTING_TTL_MS);
+
+export function listPrefixCached(prefix = '') {
+  const cacheKey = prefix === '/' ? '' : prefix.replace(/^\//, '');
+  const hit = listingCache.get(cacheKey);
+  if (hit) return hit;
+  const pending = listPrefix(prefix);
+  listingCache.set(cacheKey, pending);
+  pending.catch(() => {
+    if (listingCache.get(cacheKey) === pending) listingCache.delete(cacheKey);
+  });
+  return pending;
+}
+
+export function isNotFoundError(e) {
+  return Boolean(e && (e.name === 'NoSuchKey' || e.name === 'NotFound' || (e.$metadata && e.$metadata.httpStatusCode === 404)));
+}
+
 export async function putObject(key, body, contentType) {
   const { bucket } = getEnvConfig();
   if (!bucket) throw new Error('S3_BUCKET not set');
   const s3 = getS3();
   const k = key.replace(/^\//, '');
   await s3.send(new PutObjectCommand({ Bucket: bucket, Key: k, Body: body, ContentType: contentType }));
+  if (!isThumbnailCacheKey(k)) listingCache.clear();
 }
 
 export async function deleteObject(key) {
@@ -76,6 +100,7 @@ export async function deleteObject(key) {
   const s3 = getS3();
   const k = key.replace(/^\//, '');
   await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: k }));
+  if (!isThumbnailCacheKey(k)) listingCache.clear();
 }
 
 export async function copyObject(fromKey, toKey) {
@@ -85,6 +110,7 @@ export async function copyObject(fromKey, toKey) {
   const srcKey = fromKey.replace(/^\//, '');
   const dstKey = toKey.replace(/^\//, '');
   await s3.send(new CopyObjectCommand({ Bucket: bucket, CopySource: `/${bucket}/${srcKey}` , Key: dstKey }));
+  if (!isThumbnailCacheKey(dstKey)) listingCache.clear();
 }
 
 export async function objectExists(key) {

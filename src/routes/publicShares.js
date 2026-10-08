@@ -9,7 +9,7 @@ import {
   listAllRecursive,
   getEnvConfig,
   getS3,
-  objectExists,
+  isNotFoundError,
   isThumbnailCacheKey,
 } from '../s3.js';
 import { getShareByIdAsync, verifySharePassword } from '../shareStore.js';
@@ -60,11 +60,18 @@ export function createPublicShareRouter(upload) {
 
     try {
       const s3Client = getS3();
-      if (cacheKey && (await objectExists(cacheKey))) {
-        const cached = await s3Client.send(new GetObjectCommand({ Bucket: bucketName, Key: cacheKey }));
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-        res.setHeader('Content-Type', 'image/jpeg');
-        return cached.Body.pipe(res);
+      if (cacheKey) {
+        let cached = null;
+        try {
+          cached = await s3Client.send(new GetObjectCommand({ Bucket: bucketName, Key: cacheKey }));
+        } catch (e) {
+          if (!isNotFoundError(e)) console.warn('thumb cache read failed', cacheKey, e && e.message);
+        }
+        if (cached) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          res.setHeader('Content-Type', 'image/jpeg');
+          return cached.Body.pipe(res);
+        }
       }
 
       const cmd = new GetObjectCommand({

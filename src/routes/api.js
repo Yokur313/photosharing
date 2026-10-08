@@ -1,5 +1,5 @@
 import express from 'express';
-import { listPrefix, signGetUrl, isThumbnailCacheKey } from '../s3.js';
+import { listPrefixCached, signGetUrl, isThumbnailCacheKey } from '../s3.js';
 import { getShareByIdAsync } from '../shareStore.js';
 
 const router = express.Router();
@@ -19,7 +19,7 @@ router.get('/share/:id/items', async (req, res) => {
   const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
   const limit = Math.min(80, Math.max(1, parseInt(String(req.query.limit || '40'), 10) || 40));
   try {
-    const { files } = await listPrefix(share.folderKey);
+    const { files } = await listPrefixCached(share.folderKey);
     const visible = files.filter((f) => !isThumbnailCacheKey(f.key));
     const total = visible.length;
     const slice = visible.slice(offset, offset + limit);
@@ -51,7 +51,7 @@ router.get('/share/:id', async (req, res) => {
     return res.status(403).json({ error: 'password_required' });
   }
   try {
-    const { files } = await listPrefix(share.folderKey);
+    const { files } = await listPrefixCached(share.folderKey);
     const visible = files.filter((f) => !isThumbnailCacheKey(f.key));
     const items = [];
     for (const f of visible) {

@@ -8,10 +8,17 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
+import { createTtlCache } from './lib/ttlCache.js';
 
 const dataDir = path.join(process.cwd(), 'data');
 const legacyFile = path.join(dataDir, 'shares.json');
 const localSharesDir = path.join(dataDir, 'shares');
+
+// Share lookups happen on every gallery, thumbnail and API request; the S3 GET is the slow part.
+// Only found shares are cached (a new share is visible immediately). Other instances may keep serving a
+// deleted share for up to SHARE_CACHE_TTL_MS.
+const SHARE_CACHE_TTL_MS = 30 * 1000;
+const shareCache = createTtlCache(SHARE_CACHE_TTL_MS);
 
 function useS3Storage() {
   return Boolean(process.env.PROD_SHARES_S3_BUCKET || process.env.SHARES_S3_BUCKET);
@@ -166,13 +173,18 @@ export async function listSharesAsync() {
 export async function getShareByIdAsync(id) {
   if (!id) return null;
   if (useS3Storage()) {
+    const cached = shareCache.get(id);
+    if (cached) return { ...cached };
     await migrateLegacyS3Once();
     const bucket = sharesBucket();
     const { getS3 } = await import('./s3.js');
     const s3 = getS3();
     const key = shareObjectKey(id);
     try {
-      return await getShareFromS3ByKey(s3, bucket, key);
+      const rec = await getShareFromS3ByKey(s3, bucket, key);
+      if (!rec) return rec;
+      shareCache.set(id, rec);
+      return { ...rec };
     } catch (_) {
       return null;
     }
@@ -230,6 +242,8 @@ export async function deleteShareAsync(id) {
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: shareObjectKey(id) }));
     } catch (_) {
       /* ignore */
+    } finally {
+      shareCache.delete(id);
     }
     return;
   }
