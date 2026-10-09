@@ -20,6 +20,12 @@ const localSharesDir = path.join(dataDir, 'shares');
 const SHARE_CACHE_TTL_MS = 30 * 1000;
 const shareCache = createTtlCache(SHARE_CACHE_TTL_MS);
 
+// The full share list is read on every admin page load. In S3 mode that was a LIST plus one
+// GET per share on every request; cache it briefly (keyed) so navigation doesn't re-fetch it
+// each time. Writes on this instance clear it; other instances may be stale for up to the TTL.
+const SHARE_LIST_CACHE_KEY = 'all';
+const shareListCache = createTtlCache(SHARE_CACHE_TTL_MS);
+
 function useS3Storage() {
   return Boolean(process.env.PROD_SHARES_S3_BUCKET || process.env.SHARES_S3_BUCKET);
 }
@@ -137,21 +143,23 @@ async function getShareFromS3ByKey(s3, bucket, key) {
 
 export async function listSharesAsync() {
   if (useS3Storage()) {
+    const cached = shareListCache.get(SHARE_LIST_CACHE_KEY);
+    if (cached) return cached.map((s) => ({ ...s }));
     await migrateLegacyS3Once();
     const bucket = sharesBucket();
     const { getS3 } = await import('./s3.js');
     const s3 = getS3();
     const keys = await listShareKeysFromS3();
-    const shares = [];
-    for (const key of keys) {
-      try {
-        const rec = await getShareFromS3ByKey(s3, bucket, key);
-        if (rec) shares.push(rec);
-      } catch (_) {
-        /* skip bad object */
-      }
-    }
-    return shares;
+    // Fetch every share object concurrently instead of one round trip at a time.
+    const records = await Promise.all(
+      keys.map((key) =>
+        getShareFromS3ByKey(s3, bucket, key).catch(() => null) // skip bad/missing objects
+      )
+    );
+    const shares = records.filter(Boolean);
+    for (const rec of shares) shareCache.set(rec.id, rec); // warm single-id lookups too
+    shareListCache.set(SHARE_LIST_CACHE_KEY, shares);
+    return shares.map((s) => ({ ...s }));
   }
   migrateLegacyLocalOnce();
   ensureLocalDir();
@@ -223,6 +231,7 @@ export async function createShareAsync({ folderKey, password, editable }) {
         ContentType: 'application/json',
       })
     );
+    shareListCache.delete(SHARE_LIST_CACHE_KEY);
     return record;
   }
   migrateLegacyLocalOnce();
@@ -244,6 +253,7 @@ export async function deleteShareAsync(id) {
       /* ignore */
     } finally {
       shareCache.delete(id);
+      shareListCache.delete(SHARE_LIST_CACHE_KEY);
     }
     return;
   }
