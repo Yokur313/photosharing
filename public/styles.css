@@ -92,7 +92,7 @@ th,td{padding:10px;border-bottom:1px solid var(--border)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);cursor:default}
 .modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;max-width:90vw;max-height:90vh;z-index:1001}
 .modal-content img{display:block;max-width:85vw;max-height:85vh;border-radius:8px;cursor:zoom-in}
-.modal-close{position:fixed;top:12px;right:12px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;z-index:1002}
+.modal-close{position:fixed;top:12px;right:12px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;z-index:1002}
 /* Zoomed: the modal becomes the scroll container and the image shows at natural size. */
 .modal.zoomed{overflow:auto}
 .modal.zoomed .modal-content{position:static;transform:none;margin:auto;max-width:none;max-height:none;width:max-content}

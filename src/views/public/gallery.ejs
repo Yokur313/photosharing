@@ -214,10 +214,17 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     loadThumb(entry, thumbUrl(item.key));
   }
 
+  function resetZoom(m) {
+    if (!m) return;
+    m.classList.remove('zoomed');
+    m.scrollTop = 0;
+    m.scrollLeft = 0;
+  }
   function openPreview(url) {
     var m = document.getElementById('preview-modal');
     var im = document.getElementById('preview-image');
     if (!m || !im) return;
+    resetZoom(m); // always open fitted-to-screen, not left in a prior zoom state
     im.src = url;
     m.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -227,8 +234,22 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     var im = document.getElementById('preview-image');
     if (!m || !im) return;
     m.hidden = true;
+    resetZoom(m);
     im.src = '';
     document.body.style.overflow = '';
+  }
+  // Toggle between fit-to-screen and full resolution, centering on the clicked point.
+  function toggleZoom(e, m, im) {
+    if (m.classList.contains('zoomed')) { resetZoom(m); return; }
+    var rect = im.getBoundingClientRect(); // fitted size/position at click time
+    var fx = rect.width ? (e.clientX - rect.left) / rect.width : 0.5;
+    var fy = rect.height ? (e.clientY - rect.top) / rect.height : 0.5;
+    m.classList.add('zoomed');
+    requestAnimationFrame(function () {
+      var full = im.getBoundingClientRect(); // natural size now
+      m.scrollLeft = Math.max(0, fx * full.width - m.clientWidth / 2);
+      m.scrollTop = Math.max(0, fy * full.height - m.clientHeight / 2);
+    });
   }
   (function bindModal(){
     var m = document.getElementById('preview-modal');
@@ -236,7 +257,7 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     m.querySelector('.modal-backdrop').addEventListener('click', closePreview);
     m.querySelector('.modal-close').addEventListener('click', closePreview);
     var img = m.querySelector('img');
-    if (img) img.addEventListener('click', closePreview);
+    if (img) img.addEventListener('click', function(e){ e.stopPropagation(); toggleZoom(e, m, img); });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !m.hidden) closePreview(); });
   })();
 
