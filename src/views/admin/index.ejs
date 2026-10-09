@@ -26,6 +26,9 @@
         <p class="upload-progress-detail detail muted" style="margin:6px 0 0;font-size:12px"></p>
       </div>
       <button id="od-share-btn" class="od-btn" data-folder="<%= prefix %>">Share</button>
+      <% if (prefix) { (typeof folderModules !== 'undefined' ? folderModules : []).forEach(function(m){ %>
+        <button type="button" class="od-btn od-folder-module" data-module="<%= m.id %>" data-folder="<%= prefix %>" title="<%= m.description %>"><%= m.label %></button>
+      <% }) } %>
       <a class="secondary od-btn" href="/logout">Logout</a>
     </div>
   </div>
@@ -93,6 +96,15 @@
   </div>
 </section>
 
+<!-- Modal markup must precede the scripts below so ui.js can bind its close handlers at load. -->
+<div id="preview-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close">✕</button>
+    <img id="preview-image" alt="preview" />
+  </div>
+</div>
+
 <script src="/public/upload-progress.js"></script>
 <script src="/public/ui.js"></script>
 <script>
@@ -109,12 +121,4 @@
   }
 })();
 </script>
-<div id="preview-modal" class="modal" hidden>
-  <div class="modal-backdrop"></div>
-  <div class="modal-content">
-    <button type="button" class="modal-close">✕</button>
-    <img id="preview-image" alt="preview" />
-  </div>
-  </div>
-
 

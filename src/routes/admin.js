@@ -14,6 +14,7 @@ import { listSharesAsync, createShareAsync, deleteShareAsync, getLatestShareForF
 import { requireAdmin } from '../middleware/auth.js';
 import { warmShareCard } from '../lib/shareCard.js';
 import { SHARE_GALLERY_THUMB_CACHE, thumbCacheObjectKey } from '../thumbCacheKey.js';
+import { folderModuleDescriptors, getFolderModule } from '../folderModules/index.js';
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?)$/i;
 
@@ -142,7 +143,7 @@ export function createAdminRouter(upload) {
         crumbs.push({ name: p, prefix: `${walk}/` });
       }
       const latestShare = await getLatestShareForFolderPrefix(prefix, shares);
-      res.render('admin/index', { prefix, entries, crumbs, latestShare });
+      res.render('admin/index', { prefix, entries, crumbs, latestShare, folderModules: folderModuleDescriptors() });
     } catch (e) {
       console.error('Error listing objects', e);
       res.status(500).send('Error listing objects');
@@ -213,6 +214,33 @@ export function createAdminRouter(upload) {
       res.redirect(`/admin?prefix=${encodeURIComponent(parent)}`);
     } catch {
       res.status(500).send('Folder delete failed');
+    }
+  });
+
+  // Generic entry point for folder modules (collage is the first). Runs the named
+  // module against a single, non-root folder and returns a JSON result/error.
+  router.post('/folder/module', requireAdmin, async (req, res) => {
+    const prefix = (req.body.prefix || '').toString();
+    const moduleId = (req.body.moduleId || '').toString();
+    if (!prefix || prefix === '/') {
+      return res.status(400).json({ error: 'This action is only available inside a folder, not at the root.' });
+    }
+    if (isAppMetadataKey(prefix)) {
+      return res.status(403).json({ error: 'Not available on application metadata.' });
+    }
+    const mod = getFolderModule(moduleId);
+    if (!mod) {
+      return res.status(404).json({ error: `Unknown module "${moduleId}".` });
+    }
+    try {
+      const result = await mod.run({ prefix });
+      return res.json({ ok: true, ...result });
+    } catch (e) {
+      if (e && e.userError) {
+        return res.status(400).json({ error: e.message });
+      }
+      console.error(`Folder module "${moduleId}" failed on ${prefix}`, e);
+      return res.status(500).json({ error: 'The operation failed unexpectedly. Check the server logs.' });
     }
   });
 
