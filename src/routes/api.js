@@ -1,5 +1,5 @@
 import express from 'express';
-import { listPrefixCached, signGetUrl, isThumbnailCacheKey } from '../s3.js';
+import { listPrefixCached, signGetUrl, isThumbnailCacheKey, isImageKey } from '../s3.js';
 import { getShareByIdAsync } from '../shareStore.js';
 
 const router = express.Router();
@@ -26,7 +26,7 @@ router.get('/share/:id/items', async (req, res) => {
     const items = [];
     for (const f of slice) {
       const url = await signGetUrl(f.key, 3600);
-      items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url });
+      items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url, isImage: isImageKey(f.key) });
     }
     res.json({
       id: share.id,
@@ -56,7 +56,7 @@ router.get('/share/:id', async (req, res) => {
     const items = [];
     for (const f of visible) {
       const url = await signGetUrl(f.key, 3600);
-      items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url });
+      items.push({ key: f.key, name: f.key.split('/').pop(), size: f.size, url, isImage: isImageKey(f.key) });
     }
     res.json({ id: share.id, folderKey: share.folderKey, editable: !!share.editable, items });
   } catch {

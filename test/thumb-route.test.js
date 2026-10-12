@@ -84,3 +84,10 @@ test('a key outside the shared folder is rejected', async () => {
   const res = await fetch(`${base}/s/${ID}/thumb?key=${encodeURIComponent('other/secret.jpg')}&w=480`);
   assert.equal(res.status, 400);
 });
+
+test('a non-image key (e.g. video) is rejected without ever reaching S3', async () => {
+  calls.length = 0;
+  const res = await fetch(`${base}/s/${ID}/thumb?key=${encodeURIComponent('album/clip.mov')}&w=480`);
+  assert.equal(res.status, 415);
+  assert.equal(calls.length, 0, 'no S3 call was made for the rejected key');
+});

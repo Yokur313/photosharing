@@ -178,6 +178,8 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     commitReady();
   }
 
+  var FILE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/></svg>';
+
   function createTile(item) {
     var label = document.createElement('label');
     label.className = 'tile';
@@ -191,6 +193,22 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     a.target = '_blank';
     a.rel = 'noopener';
     var thumb = document.createElement('div');
+    label.appendChild(cb);
+    label.appendChild(a);
+
+    if (!item.isImage) {
+      // Videos and other non-image files: no thumbnail fetch (the server won't generate one
+      // either), just an icon + extension; clicking opens/downloads the file normally.
+      thumb.className = 'thumb thumb-file';
+      var ext = (item.name || '').split('.').pop() || 'file';
+      thumb.innerHTML = FILE_ICON_SVG + '<span class="thumb-file-ext">' + ext + '</span>';
+      a.appendChild(thumb);
+      entries.push({ index: entries.length, el: label, thumb: thumb, img: null });
+      ratios.push(1); // fixed square-ish ratio; there's no image to measure
+      commitReady();
+      return;
+    }
+
     thumb.className = 'thumb thumb-loading';
     var img = document.createElement('img');
     img.alt = '';
@@ -198,8 +216,6 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
     thumb.appendChild(img);
     a.appendChild(thumb);
     a.addEventListener('click', function(ev){ ev.preventDefault(); openPreview(item.url); });
-    label.appendChild(cb);
-    label.appendChild(a);
 
     var entry = { index: entries.length, el: label, thumb: thumb, img: img };
     entries.push(entry);
@@ -251,13 +267,62 @@ import { DEFAULT_RATIO, targetRowHeight, planRow } from '/public/justified-layou
       m.scrollTop = Math.max(0, fy * full.height - m.clientHeight / 2);
     });
   }
+  // Dragging (mouse or finger) pans the zoomed photo; a tap/click with no movement toggles zoom.
+  // Pointer Events unify mouse + touch + pen in one code path.
+  function bindDragToPan(m, img) {
+    var DRAG_THRESHOLD = 6; // px of movement before a tap becomes a drag
+    var drag = null;
+    img.draggable = false; // stop the browser's native "ghost image" drag, which otherwise wins over our pan
+    img.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button > 0) return; // ignore right/middle mouse button
+      drag = {
+        id: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        scrollLeft: m.scrollLeft,
+        scrollTop: m.scrollTop,
+        moved: false,
+      };
+      img.setPointerCapture(e.pointerId);
+    });
+    img.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dx = e.clientX - drag.startX;
+      var dy = e.clientY - drag.startY;
+      if (!drag.moved) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        drag.moved = true;
+        img.classList.add('dragging');
+      }
+      if (m.classList.contains('zoomed')) {
+        m.scrollLeft = drag.scrollLeft - dx;
+        m.scrollTop = drag.scrollTop - dy;
+      }
+    });
+    function endDrag(e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var wasDrag = drag.moved;
+      img.classList.remove('dragging');
+      drag = null;
+      if (!wasDrag) toggleZoom(e, m, img);
+    }
+    img.addEventListener('pointerup', endDrag);
+    img.addEventListener('pointercancel', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      img.classList.remove('dragging');
+      drag = null;
+    });
+    // The pointerup above already handled the tap; swallow the click browsers fire afterward
+    // so it doesn't re-toggle zoom or bubble up to the backdrop's close handler.
+    img.addEventListener('click', function (e) { e.stopPropagation(); e.preventDefault(); });
+  }
   (function bindModal(){
     var m = document.getElementById('preview-modal');
     if (!m) return;
     m.querySelector('.modal-backdrop').addEventListener('click', closePreview);
     m.querySelector('.modal-close').addEventListener('click', closePreview);
     var img = m.querySelector('img');
-    if (img) img.addEventListener('click', function(e){ e.stopPropagation(); toggleZoom(e, m, img); });
+    if (img) bindDragToPan(m, img);
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !m.hidden) closePreview(); });
   })();
 

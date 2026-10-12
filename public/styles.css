@@ -51,6 +51,10 @@ button.secondary:hover{border-color:var(--text)}
 #photo-grid .jrow .tile .thumb.thumb-loading img{opacity:0}
 #photo-grid .jrow .tile .thumb.thumb-loaded img{opacity:1;transition:opacity .2s ease}
 @keyframes share-thumb-spin{to{transform:rotate(360deg)}}
+/* Non-image files (video, etc.): icon + extension label, no thumbnail fetch. */
+#photo-grid .jrow .tile .thumb.thumb-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted)}
+#photo-grid .jrow .tile .thumb.thumb-file svg{width:28%;height:28%;opacity:.7}
+#photo-grid .jrow .tile .thumb.thumb-file .thumb-file-ext{font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .tile{background:transparent;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative}
 .tile .thumb{aspect-ratio:1/1;background:var(--bg);display:flex;align-items:center;justify-content:center}
 .tile img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .2s ease}
@@ -89,14 +93,19 @@ th,td{padding:10px;border-bottom:1px solid var(--border)}
 /* Modal */
 .modal{position:fixed;inset:0;display:block;z-index:1000}
 .modal[hidden]{display:none}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);cursor:default}
-.modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:8px;max-width:90vw;max-height:90vh;z-index:1001}
-.modal-content img{display:block;max-width:85vw;max-height:85vh;border-radius:8px;cursor:zoom-in}
+.modal-backdrop{position:fixed;inset:0;background:rgba(6,6,8,.95);cursor:default}
+/* No card background/padding here: the photo sits directly on the backdrop in both the
+   fit-to-screen and zoomed states, so toggling zoom doesn't change its surrounding frame. */
+.modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:90vw;max-height:90vh;z-index:1001}
+.modal-content img{display:block;max-width:85vw;max-height:85vh;border-radius:8px;cursor:zoom-in;touch-action:none}
 .modal-close{position:fixed;top:12px;right:12px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;z-index:1002}
-/* Zoomed: the modal becomes the scroll container and the image shows at natural size. */
+/* Zoomed: the modal becomes the scroll container and the image shows at natural size.
+   position:relative (not static!) keeps z-index effective — a statically-positioned element
+   ignores z-index entirely, which let the backdrop paint (and hit-test) on top of the photo. */
 .modal.zoomed{overflow:auto}
-.modal.zoomed .modal-content{position:static;transform:none;margin:auto;max-width:none;max-height:none;width:max-content}
+.modal.zoomed .modal-content{position:relative;transform:none;margin:auto;max-width:none;max-height:none;width:max-content}
 .modal.zoomed .modal-content img{max-width:none;max-height:none;cursor:zoom-out}
+.modal.zoomed .modal-content img.dragging{cursor:grabbing}
 
 /* Themed icon button */
 .od-btn{min-height:32px;white-space:nowrap}

@@ -145,6 +145,17 @@ export function isThumbnailCacheKey(key) {
   return k.includes('/.thumbnails/') || k === '.thumbnails' || k.startsWith('.thumbnails/');
 }
 
+const IMAGE_EXTENSIONS = new Set([
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'tiff', 'tif', 'bmp', 'heic', 'heif',
+]);
+
+/** True if key's extension is a raster format the thumbnailer can decode (excludes video/audio/other files). */
+export function isImageKey(key) {
+  if (!key || typeof key !== 'string') return false;
+  const match = /\.([a-z0-9]+)$/i.exec(key);
+  return !!match && IMAGE_EXTENSIONS.has(match[1].toLowerCase());
+}
+
 export async function createFolder(prefix) {
   const key = joinKey(prefix).replace(/\/?$/, '/')
   // S3-style folders are zero-byte objects ending with '/'

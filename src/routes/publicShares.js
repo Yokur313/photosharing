@@ -11,6 +11,7 @@ import {
   getS3,
   isNotFoundError,
   isThumbnailCacheKey,
+  isImageKey,
 } from '../s3.js';
 import { getShareByIdAsync, verifySharePassword } from '../shareStore.js';
 import { thumbCacheObjectKey } from '../thumbCacheKey.js';
@@ -45,6 +46,11 @@ export function createPublicShareRouter(upload) {
     }
     if (isThumbnailCacheKey(key)) {
       return res.status(400).send('Invalid key');
+    }
+    if (!isImageKey(key)) {
+      // Reject before touching S3: buffering a whole video/other file just to have sharp
+      // reject it wastes memory and has caused container OOM crashes under concurrent viewers.
+      return res.status(415).send('Not an image');
     }
     const fitRaw = (req.query.fit || 'cover').toString().toLowerCase();
     const fitMode = fitRaw === 'inside' ? 'inside' : 'cover';
